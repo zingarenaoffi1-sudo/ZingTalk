@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MyChatApp</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+
+    <div id="login-screen" class="screen">
+        <div class="login-container">
+            <h1>MyChatApp</h1>
+            <button id="google-login-btn" class="primary-btn">Login with Google</button>
+        </div>
+    </div>
+
+    <div id="main-screen" class="screen hidden">
+        <header class="main-header">
+            <div id="my-profile" class="profile-section">
+                <div id="my-avatar" class="avatar"></div>
+                <div class="user-details">
+                    <span id="my-name" class="name-text"></span>
+                    <span id="my-uid" class="uid-text"></span>
+                </div>
+            </div>
+        </header>
+
+        <div class="search-section">
+            <input type="number" id="search-uid-input" placeholder="Enter 5-digit UID">
+            <input type="text" id="save-name-input" placeholder="Custom Name">
+            <button id="save-contact-btn" class="action-btn">Save</button>
+        </div>
+
+        <div id="contacts-list" class="list-container"></div>
+    </div>
+
+    <div id="chat-screen" class="screen hidden">
+        <header class="chat-header">
+            <button id="back-btn" class="icon-btn">Back</button>
+            <div class="chat-contact-info">
+                <div id="chat-avatar" class="avatar small"></div>
+                <span id="chat-contact-name" class="name-text"></span>
+            </div>
+            <div class="call-buttons">
+                <button id="audio-call-btn" class="icon-btn">Audio</button>
+                <button id="video-call-btn" class="icon-btn">Video</button>
+            </div>
+        </header>
+
+        <div id="messages-area" class="messages-container"></div>
+
+        <div class="input-area">
+            <input type="text" id="message-input" placeholder="Message...">
+            <button id="send-btn" class="action-btn">Send</button>
+        </div>
+    </div>
+
+    <div id="call-screen" class="screen hidden">
+        <video id="remote-video" autoplay playsinline></video>
+        <video id="local-video" autoplay playsinline muted></video>
+        <div class="call-controls">
+            <button id="end-call-btn" class="danger-btn">End Call</button>
+        </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+    <script type="module" src="calling.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js');
+            });
+        }
+    </script>
+</body>
+</html>
