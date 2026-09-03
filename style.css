@@ -278,3 +278,55 @@ body {
     min-width: 20px;
     text-align: center;
 }
+
+.incoming-call-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: white;
+}
+
+.incoming-call-overlay h2 {
+    font-size: 28px;
+    margin-bottom: 10px;
+}
+
+.incoming-call-overlay p {
+    font-size: 18px;
+    margin-bottom: 30px;
+}
+
+.call-actions {
+    display: flex;
+    gap: 30px;
+}
+
+.accept-btn {
+    background-color: #25D366;
+    color: white;
+    border: none;
+    padding: 15px 35px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.reject-btn {
+    background-color: #ff4444;
+    color: white;
+    border: none;
+    padding: 15px 35px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+}
