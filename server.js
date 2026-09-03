@@ -48,13 +48,6 @@ io.on('connection', (socket) => {
         
         const userDoc = await usersRef.doc(uid).get();
         socket.emit('user_data', userDoc.data());
-
-        socket.emit('receive_turn_config', {
-            iceServers: [
-                { urls: "stun:stun1.l.google.com:19302" },
-                { urls: "stun:stun2.l.google.com:19302" }
-            ]
-        });
     });
 
     socket.on('save_contact', async (data) => {
@@ -63,11 +56,7 @@ io.on('connection', (socket) => {
         const targetSnapshot = await targetRef.get();
 
         if (!targetSnapshot.empty) {
-            const newContact = {
-                uid: data.targetUid,
-                name: data.customName
-            };
-            
+            const newContact = { uid: data.targetUid, name: data.customName };
             await db.runTransaction(async (t) => {
                 const doc = await t.get(userRef);
                 const currentContacts = doc.data().contacts || [];
@@ -75,21 +64,30 @@ io.on('connection', (socket) => {
                 updatedContacts.push(newContact);
                 t.update(userRef, { contacts: updatedContacts });
             });
-
             const updatedDoc = await userRef.get();
             socket.emit('contact_saved', updatedDoc.data().contacts);
         }
     });
 
-    socket.on('join_chat', (data) => {
-        const roomName = [data.myUid, data.targetUid].sort().join('_');
-        socket.join(roomName);
+    socket.on('send_message', (data) => {
+        const targetSocketId = connectedUsers.get(data.receiverUid);
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('receive_message', data);
+        }
     });
 
-    // Yeh raha naya Message Send/Receive event jo missing tha
-    socket.on('send_message', (data) => {
-        const roomName = [data.senderUid, data.receiverUid].sort().join('_');
-        io.to(roomName).emit('receive_message', data);
+    socket.on('initiate_call', (data) => {
+        const targetSocketId = connectedUsers.get(data.targetUid);
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('incoming_call', { callerUid: data.callerUid, callerName: data.callerName });
+        }
+    });
+
+    socket.on('call_response', (data) => {
+        const targetSocketId = connectedUsers.get(data.targetUid);
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('call_response_received', { status: data.status });
+        }
     });
 
     socket.on('webrtc_offer', (data) => {
