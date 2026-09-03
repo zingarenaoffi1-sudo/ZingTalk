@@ -86,6 +86,12 @@ io.on('connection', (socket) => {
         socket.join(roomName);
     });
 
+    // Yeh raha naya Message Send/Receive event jo missing tha
+    socket.on('send_message', (data) => {
+        const roomName = [data.senderUid, data.receiverUid].sort().join('_');
+        io.to(roomName).emit('receive_message', data);
+    });
+
     socket.on('webrtc_offer', (data) => {
         const targetSocketId = connectedUsers.get(data.targetUid);
         if (targetSocketId) {
