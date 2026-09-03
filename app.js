@@ -29,10 +29,17 @@ const saveNameInput = document.getElementById("save-name-input");
 const saveContactBtn = document.getElementById("save-contact-btn");
 const contactsList = document.getElementById("contacts-list");
 const backBtn = document.getElementById("back-btn");
+const messageInput = document.getElementById("message-input");
+const sendBtn = document.getElementById("send-btn");
+const chatMessagesArea = document.getElementById("chat-messages");
 
 let currentUser = null;
 export let my5DigitUid = null;
 export let currentTargetUid = null;
+
+let chatHistory = {};
+let unreadCounts = {};
+let myContacts = [];
 
 loginBtn.addEventListener("click", () => {
     signInWithPopup(auth, provider).catch(err => alert(err.message));
@@ -57,11 +64,12 @@ onAuthStateChanged(auth, (user) => {
 
 socket.on("user_data", (data) => {
     my5DigitUid = data.uid;
+    myContacts = data.contacts || [];
     myName.innerText = currentUser.displayName;
     myUid.innerText = "UID: " + my5DigitUid;
     myAvatar.innerText = currentUser.displayName.charAt(0).toUpperCase();
     
-    renderContacts(data.contacts);
+    renderContacts(myContacts);
 });
 
 saveContactBtn.addEventListener("click", () => {
@@ -80,7 +88,8 @@ saveContactBtn.addEventListener("click", () => {
 socket.on("contact_saved", (contacts) => {
     searchUidInput.value = "";
     saveNameInput.value = "";
-    renderContacts(contacts);
+    myContacts = contacts;
+    renderContacts(myContacts);
 });
 
 function renderContacts(contacts) {
@@ -88,6 +97,9 @@ function renderContacts(contacts) {
     if (!contacts) return;
     
     contacts.forEach(contact => {
+        const unreadCount = unreadCounts[contact.uid] || 0;
+        const unreadBadge = unreadCount > 0 ? `<span class="unread-badge">${unreadCount}</span>` : "";
+
         const div = document.createElement("div");
         div.className = "contact-item";
         div.innerHTML = `
@@ -95,6 +107,7 @@ function renderContacts(contacts) {
             <div class="chat-contact-info">
                 <span class="name-text">${contact.name}</span>
             </div>
+            ${unreadBadge}
         `;
         div.addEventListener("click", () => openChat(contact));
         contactsList.appendChild(div);
@@ -103,6 +116,9 @@ function renderContacts(contacts) {
 
 function openChat(contact) {
     currentTargetUid = contact.uid;
+    unreadCounts[contact.uid] = 0;
+    renderContacts(myContacts);
+
     mainScreen.classList.add("hidden");
     chatScreen.classList.remove("hidden");
     document.getElementById("chat-contact-name").innerText = contact.name;
@@ -112,9 +128,55 @@ function openChat(contact) {
         myUid: my5DigitUid,
         targetUid: contact.uid
     });
+
+    chatMessagesArea.innerHTML = "";
+    if (chatHistory[contact.uid]) {
+        chatHistory[contact.uid].forEach(msg => appendMessage(msg, msg.type));
+    }
+}
+
+sendBtn.addEventListener("click", () => {
+    const text = messageInput.value.trim();
+    if (text && currentTargetUid) {
+        const msgData = {
+            senderUid: my5DigitUid,
+            receiverUid: currentTargetUid,
+            text: text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        socket.emit("send_message", msgData);
+        appendMessage(msgData, "msg-sent");
+
+        if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
+        chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
+
+        messageInput.value = "";
+    }
+});
+
+socket.on("receive_message", (data) => {
+    const sender = data.senderUid;
+    if (!chatHistory[sender]) chatHistory[sender] = [];
+    chatHistory[sender].push({ ...data, type: "msg-received" });
+
+    if (currentTargetUid === sender) {
+        appendMessage(data, "msg-received");
+    } else {
+        unreadCounts[sender] = (unreadCounts[sender] || 0) + 1;
+        renderContacts(myContacts);
+    }
+});
+
+function appendMessage(data, type) {
+    const div = document.createElement("div");
+    div.className = `msg-bubble ${type}`;
+    div.innerHTML = `${data.text} <br><span style="font-size: 10px; color: gray; float: right; margin-top: 5px;">${data.timestamp}</span>`;
+    chatMessagesArea.appendChild(div);
+    chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
 }
 
 backBtn.addEventListener("click", () => {
+    currentTargetUid = null;
     chatScreen.classList.add("hidden");
     mainScreen.classList.remove("hidden");
 });
