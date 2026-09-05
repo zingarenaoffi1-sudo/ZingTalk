@@ -42,7 +42,6 @@ let currentTargetUid = null;
 let chatHistory = {};
 let unreadCounts = {};
 let myContacts = [];
-
 let localStream = null;
 let peerConnection = null;
 let activeCallTarget = null;
@@ -66,9 +65,6 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-const loginBtn = document.getElementById("google-login-btn");
-if (loginBtn) loginBtn.onclick = () => signInWithPopup(auth, provider).catch(err => alert(err.message));
-
 socket.on("user_data", (data) => {
     my5DigitUid = data.uid;
     const nameEl = document.getElementById("my-name");
@@ -79,17 +75,6 @@ socket.on("user_data", (data) => {
     if (avatarEl) avatarEl.innerText = currentUser.displayName.charAt(0).toUpperCase();
     renderContacts(data.contacts);
 });
-
-const saveContactBtn = document.getElementById("save-contact-btn");
-if (saveContactBtn) {
-    saveContactBtn.onclick = () => {
-        const searchUidInput = document.getElementById("search-uid-input");
-        const saveNameInput = document.getElementById("save-name-input");
-        if (searchUidInput?.value.trim() && saveNameInput?.value.trim()) {
-            socket.emit("save_contact", { myUid: my5DigitUid, targetUid: searchUidInput.value.trim(), customName: saveNameInput.value.trim() });
-        }
-    };
-}
 
 socket.on("contact_saved", (contacts) => {
     if (document.getElementById("search-uid-input")) document.getElementById("search-uid-input").value = "";
@@ -125,36 +110,28 @@ function openChat(contact) {
     const avatarEl = document.getElementById("chat-avatar");
     if(avatarEl) avatarEl.innerText = contact.name.charAt(0).toUpperCase();
     
-    const chatMessagesArea = document.getElementById("chat-messages");
+    // HTML me chat-messages ka container sahi se dhundne ka logic
+    const chatMessagesArea = document.getElementById("chat-messages") || document.querySelector(".messages-container");
     if (chatMessagesArea) {
         chatMessagesArea.innerHTML = "";
         if (chatHistory[contact.uid]) chatHistory[contact.uid].forEach(msg => appendMessage(msg, msg.type));
     }
 }
 
-const backBtn = document.getElementById("back-btn");
-if(backBtn) {
-    backBtn.onclick = () => {
-        currentTargetUid = null;
-        document.getElementById("chat-screen")?.classList.add("hidden");
-        document.getElementById("main-screen")?.classList.remove("hidden");
-    };
-}
-
-const sendBtn = document.getElementById("send-btn");
-if(sendBtn) {
-    sendBtn.onclick = () => {
-        const messageInput = document.getElementById("message-input");
-        const text = messageInput?.value.trim();
-        if (text && currentTargetUid) {
-            const msgData = { senderUid: my5DigitUid, receiverUid: currentTargetUid, text: text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-            socket.emit("send_message", msgData);
-            appendMessage(msgData, "msg-sent");
-            if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
-            chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
-            messageInput.value = "";
-        }
-    };
+// ==== MESSAGE SEND LOGIC ====
+function sendMessageLogic() {
+    const messageInput = document.getElementById("message-input");
+    const text = messageInput?.value.trim();
+    if (text && currentTargetUid) {
+        const msgData = { senderUid: my5DigitUid, receiverUid: currentTargetUid, text: text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+        socket.emit("send_message", msgData);
+        appendMessage(msgData, "msg-sent");
+        if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
+        chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
+        messageInput.value = "";
+    } else if (!currentTargetUid) {
+        alert("Pehle contact select karein chat karne ke liye!");
+    }
 }
 
 socket.on("receive_message", (data) => {
@@ -171,7 +148,7 @@ socket.on("receive_message", (data) => {
 });
 
 function appendMessage(data, type) {
-    const chatMessagesArea = document.getElementById("chat-messages");
+    const chatMessagesArea = document.getElementById("chat-messages") || document.querySelector(".messages-container");
     if (!chatMessagesArea) return;
     const div = document.createElement("div");
     div.className = `msg-bubble ${type}`;
@@ -180,18 +157,74 @@ function appendMessage(data, type) {
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
 }
 
-// === CALLING LOGIC (STRICT) ===
-
+// ==== ALL CLICKS EVENT DELEGATION ====
 document.addEventListener("click", (e) => {
+    // 1. Agar button click ho raha hai toh page refresh roko
+    if (e.target.tagName === "BUTTON") e.preventDefault();
+
+    // 2. Google Login
+    if (e.target.id === "google-login-btn" || e.target.closest("#google-login-btn")) {
+        signInWithPopup(auth, provider).catch(err => alert(err.message));
+    }
+    
+    // 3. Save Contact
+    if (e.target.id === "save-contact-btn" || e.target.closest("#save-contact-btn")) {
+        const searchUidInput = document.getElementById("search-uid-input");
+        const saveNameInput = document.getElementById("save-name-input");
+        if (searchUidInput?.value.trim() && saveNameInput?.value.trim()) {
+            socket.emit("save_contact", { myUid: my5DigitUid, targetUid: searchUidInput.value.trim(), customName: saveNameInput.value.trim() });
+        }
+    }
+
+    // 4. Back Button
+    if (e.target.id === "back-btn" || e.target.closest("#back-btn")) {
+        currentTargetUid = null;
+        document.getElementById("chat-screen")?.classList.add("hidden");
+        document.getElementById("main-screen")?.classList.remove("hidden");
+    }
+
+    // 5. Send Message Button
+    if (e.target.id === "send-btn" || e.target.closest("#send-btn")) {
+        sendMessageLogic();
+    }
+
+    // 6. Audio/Video Call Button
     const text = e.target.innerText || "";
     if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn") {
-        if(!currentTargetUid) return;
+        if(!currentTargetUid) return alert("Call karne ke liye chat open karein!");
         currentCallType = (text.includes("Video") || e.target.id === "video-call-btn") ? "video" : "audio";
         activeCallTarget = currentTargetUid;
         socket.emit("initiate_call", { callerUid: my5DigitUid, targetUid: currentTargetUid, callerName: currentUser.displayName, type: currentCallType });
     }
+
+    // 7. Accept/Reject/End Call (No Auto-Answer anymore)
+    if (e.target.id === "accept-call-btn") {
+        document.getElementById("incoming-call-overlay").classList.add("hidden");
+        socket.emit("call_response", { targetUid: activeCallTarget, status: "accepted" });
+        startWebRTC(false);
+    }
+    if (e.target.id === "reject-call-btn") {
+        document.getElementById("incoming-call-overlay").classList.add("hidden");
+        socket.emit("call_response", { targetUid: activeCallTarget, status: "rejected" });
+        activeCallTarget = null;
+    }
+    if (e.target.id === "end-call-btn") {
+        endCall();
+    }
 });
 
+// ==== ENTER KEY SE MESSAGE BHEJNA ====
+document.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+        const messageInput = document.getElementById("message-input");
+        if (document.activeElement === messageInput) {
+            e.preventDefault(); 
+            sendMessageLogic();
+        }
+    }
+});
+
+// ==== CALL LOGIC ====
 socket.on("incoming_call", (data) => {
     activeCallTarget = data.callerUid;
     currentCallType = data.type; 
@@ -200,30 +233,17 @@ socket.on("incoming_call", (data) => {
     document.getElementById("incoming-call-overlay").classList.remove("hidden");
 });
 
-document.getElementById("accept-call-btn").onclick = () => {
-    document.getElementById("incoming-call-overlay").classList.add("hidden");
-    socket.emit("call_response", { targetUid: activeCallTarget, status: "accepted" });
-    startWebRTC(false);
-};
-
-document.getElementById("reject-call-btn").onclick = () => {
-    document.getElementById("incoming-call-overlay").classList.add("hidden");
-    socket.emit("call_response", { targetUid: activeCallTarget, status: "rejected" });
-    activeCallTarget = null;
-};
-
 socket.on("call_response_received", (data) => {
     if(data.status === "accepted") {
         startWebRTC(true);
     } else {
-        alert("Call Rejected");
+        alert("Saamne wale ne Call Reject kar di.");
         activeCallTarget = null;
     }
 });
 
 async function startWebRTC(isCaller) {
     document.getElementById("full-call-screen").classList.remove("hidden");
-    
     const localVideo = document.getElementById("local-video");
     const remoteVideo = document.getElementById("remote-video");
     
@@ -235,21 +255,15 @@ async function startWebRTC(isCaller) {
             localVideo.style.display = currentCallType === "video" ? "block" : "none";
         }
     } catch (err) {
-        alert("Camera ya Mic access required!");
+        alert("Camera ya Mic ki permission dena zaroori hai!");
         endCall();
         return;
     }
     
     peerConnection = new RTCPeerConnection(rtcConfig);
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    
-    peerConnection.ontrack = (event) => {
-        if(remoteVideo) remoteVideo.srcObject = event.streams[0];
-    };
-    
-    peerConnection.onicecandidate = (event) => {
-        if(event.candidate) socket.emit("webrtc_ice_candidate", { targetUid: activeCallTarget, candidate: event.candidate });
-    };
+    peerConnection.ontrack = (event) => { if(remoteVideo) remoteVideo.srcObject = event.streams[0]; };
+    peerConnection.onicecandidate = (event) => { if(event.candidate) socket.emit("webrtc_ice_candidate", { targetUid: activeCallTarget, candidate: event.candidate }); };
     
     if(isCaller) {
         const offer = await peerConnection.createOffer();
@@ -265,13 +279,8 @@ socket.on("webrtc_offer_received", async (data) => {
     socket.emit("webrtc_answer", { targetUid: activeCallTarget, answer: answer });
 });
 
-socket.on("webrtc_answer_received", async (data) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-});
-
-socket.on("webrtc_ice_candidate_received", async (data) => {
-    if(peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-});
+socket.on("webrtc_answer_received", async (data) => { await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer)); });
+socket.on("webrtc_ice_candidate_received", async (data) => { if(peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)); });
 
 function endCall() {
     if(peerConnection) peerConnection.close();
@@ -280,8 +289,6 @@ function endCall() {
     activeCallTarget = null;
     document.getElementById("full-call-screen").classList.add("hidden");
 }
-
-document.getElementById("end-call-btn").onclick = endCall;
 
 socket.on("webrtc_call_ended", () => {
     if(peerConnection) peerConnection.close();
