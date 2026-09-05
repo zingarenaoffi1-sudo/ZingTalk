@@ -5,9 +5,7 @@ const admin = require('firebase-admin');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 admin.initializeApp({
     credential: admin.credential.cert({
@@ -18,9 +16,6 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
-
-// Aapka purana Map logic wapas jodd diya gaya hai
-const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
     socket.on('login_user', async (data) => {
@@ -35,21 +30,12 @@ io.on('connection', (socket) => {
                 const uidCheck = await usersRef.where('uid', '==', uid).get();
                 if (uidCheck.empty) isUnique = true;
             }
-            await usersRef.doc(uid).set({
-                uid: uid,
-                email: data.email,
-                name: data.name,
-                contacts: []
-            });
+            await usersRef.doc(uid).set({ uid: uid, email: data.email, name: data.name, contacts: [] });
         } else {
-            const userData = snapshot.docs[0].data();
-            uid = userData.uid;
+            uid = snapshot.docs[0].data().uid;
         }
 
-        // Map aur Socket Room dono set kar diye hain taaki Render sleep hone par bhi crash na ho
-        connectedUsers.set(uid, socket.id);
-        socket.join(uid);
-        
+        socket.join(uid); 
         const userDoc = await usersRef.doc(uid).get();
         socket.emit('user_data', userDoc.data());
     });
@@ -73,17 +59,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Ab messages direct ID ke zariye safe room mein jayenge
     socket.on('send_message', (data) => {
         io.to(data.receiverUid).emit('receive_message', data);
     });
 
     socket.on('initiate_call', (data) => {
-        io.to(data.targetUid).emit('incoming_call', { callerUid: data.callerUid, callerName: data.callerName });
+        io.to(data.targetUid).emit('incoming_call', data);
     });
 
     socket.on('call_response', (data) => {
-        io.to(data.targetUid).emit('call_response_received', { status: data.status });
+        io.to(data.targetUid).emit('call_response_received', data);
     });
 
     socket.on('webrtc_offer', (data) => {
@@ -100,15 +85,6 @@ io.on('connection', (socket) => {
 
     socket.on('webrtc_end_call', (data) => {
         io.to(data.targetUid).emit('webrtc_call_ended');
-    });
-
-    socket.on('disconnect', () => {
-        for (const [uid, socketId] of connectedUsers.entries()) {
-            if (socketId === socket.id) {
-                connectedUsers.delete(uid);
-                break;
-            }
-        }
     });
 });
 
