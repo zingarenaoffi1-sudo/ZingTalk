@@ -33,6 +33,12 @@ if (!document.getElementById("call-screen-container")) {
                 <button id="reject-call-btn" class="reject-btn">Reject</button>
             </div>
         </div>
+        <div id="outgoing-call-overlay" class="hidden">
+            <h2 id="outgoing-call-name"></h2>
+            <div class="call-actions">
+                <button id="cancel-outgoing-btn" class="reject-btn">Cancel</button>
+            </div>
+        </div>
     `;
     document.body.appendChild(div);
 }
@@ -40,7 +46,6 @@ if (!document.getElementById("call-screen-container")) {
 let currentUser = null;
 let my5DigitUid = null;
 let currentTargetUid = null;
-// LOCAL STORAGE FIX: Purane messages browser se load karo
 let chatHistory = JSON.parse(localStorage.getItem("zingTalkHistory")) || {};
 let unreadCounts = {};
 let myContacts = [];
@@ -124,7 +129,7 @@ function sendMessageLogic() {
         
         if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
         chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
-        localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory)); // Save to memory
+        localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory)); 
         
         messageInput.value = "";
     }
@@ -134,7 +139,7 @@ socket.on("receive_message", (data) => {
     const sender = data.senderUid;
     if (!chatHistory[sender]) chatHistory[sender] = [];
     chatHistory[sender].push({ ...data, type: "msg-received" });
-    localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory)); // Save to memory
+    localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory)); 
 
     if (currentTargetUid === sender) {
         appendMessage(data, "msg-received");
@@ -181,7 +186,21 @@ document.addEventListener("click", (e) => {
         if(!currentTargetUid) return alert("Call karne ke liye chat open karein!");
         currentCallType = text.includes("Video") ? "video" : "audio";
         activeCallTarget = currentTargetUid;
+
+        let targetNameToShow = "Unknown person";
+        const contact = myContacts.find(c => c.uid === currentTargetUid);
+        if(contact) targetNameToShow = contact.name;
+
+        document.getElementById("outgoing-call-name").innerHTML = `Calling ${targetNameToShow}...<br><span style="font-size:16px; color:#ccc;">${currentCallType} call</span>`;
+        document.getElementById("outgoing-call-overlay").classList.remove("hidden");
+
         socket.emit("initiate_call", { callerUid: my5DigitUid, targetUid: currentTargetUid, callerName: currentUser.displayName, type: currentCallType });
+    }
+
+    if (e.target.id === "cancel-outgoing-btn") {
+        document.getElementById("outgoing-call-overlay").classList.add("hidden");
+        socket.emit("cancel_call", { targetUid: activeCallTarget });
+        activeCallTarget = null;
     }
 
     if (e.target.id === "accept-call-btn") {
@@ -189,11 +208,13 @@ document.addEventListener("click", (e) => {
         socket.emit("call_response", { targetUid: activeCallTarget, status: "accepted" });
         startWebRTC(false);
     }
+
     if (e.target.id === "reject-call-btn") {
         document.getElementById("incoming-call-overlay").classList.add("hidden");
         socket.emit("call_response", { targetUid: activeCallTarget, status: "rejected" });
         activeCallTarget = null;
     }
+    
     if (e.target.id === "end-call-btn") endCall();
 });
 
@@ -207,21 +228,45 @@ document.addEventListener("keypress", (e) => {
 socket.on("incoming_call", (data) => {
     activeCallTarget = data.callerUid;
     currentCallType = data.type; 
-    document.getElementById("caller-name-display").innerHTML = `${data.callerName}<br><span style="font-size:16px; color:#ccc;">Incoming ${currentCallType} call...</span>`;
+    
+    let callerNameToShow = "Unknown person";
+    const knownContact = myContacts.find(c => c.uid === data.callerUid);
+    if (knownContact) {
+        callerNameToShow = knownContact.name;
+    }
+
+    document.getElementById("caller-name-display").innerHTML = `${callerNameToShow}<br><span style="font-size:16px; color:#ccc;">Incoming ${currentCallType} call...</span>`;
     document.getElementById("incoming-call-overlay").classList.remove("hidden");
 });
 
+socket.on("call_cancelled", () => {
+    document.getElementById("incoming-call-overlay").classList.add("hidden");
+    activeCallTarget = null;
+});
+
 socket.on("call_response_received", (data) => {
+    document.getElementById("outgoing-call-overlay").classList.add("hidden");
     if(data.status === "accepted") startWebRTC(true);
     else { alert("Saamne wale ne Call Reject kar di."); activeCallTarget = null; }
 });
 
 async function startWebRTC(isCaller) {
     document.getElementById("full-call-screen").classList.remove("hidden");
+    const localVideo = document.getElementById("local-video");
+    
+    // FIX: Audio Call mein chota camera totally hide kar do
+    if(currentCallType === "audio") {
+        if(localVideo) localVideo.classList.add("hidden");
+    } else {
+        if(localVideo) localVideo.classList.remove("hidden");
+    }
+    
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: currentCallType === "video" });
-        const localVideo = document.getElementById("local-video");
-        if(localVideo) { localVideo.srcObject = localStream; localVideo.style.display = currentCallType === "video" ? "block" : "none"; }
+        const constraints = { audio: true, video: currentCallType === "video" };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        if(localVideo && currentCallType === "video") { 
+            localVideo.srcObject = localStream; 
+        }
     } catch (err) { alert("Camera/Mic permission zaroori hai!"); endCall(); return; }
     
     peerConnection = new RTCPeerConnection(rtcConfig);
