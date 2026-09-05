@@ -235,7 +235,6 @@ body {
     text-align: center;
 }
 
-/* Fixed Call Screen (100% Full Screen & Highest Z-Index) */
 #full-call-screen, #call-screen {
     position: fixed;
     top: 0;
@@ -287,7 +286,6 @@ body {
     box-shadow: 0 4px 10px rgba(255,0,0,0.5);
 }
 
-/* Incoming & Outgoing Call Popups (Ekdum Upar Dikhega) */
 #incoming-call-overlay, .incoming-call-overlay, #outgoing-call-overlay {
     position: fixed;
     top: 0;
