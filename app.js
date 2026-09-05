@@ -16,7 +16,6 @@ const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 export const socket = io("https://zingtalk-4clj.onrender.com", { transports: ["websocket", "polling"] });
 
-// Sabse zaroori lock: Yeh kisi bhi form ko page refresh nahi karne dega
 window.addEventListener("submit", (e) => {
     e.preventDefault();
 });
@@ -165,11 +164,20 @@ document.addEventListener("click", (e) => {
         signInWithPopup(auth, provider).catch(err => alert(err.message));
     }
     
+    // FOOL-PROOF LOCK: Khud ka UID save karne se rokne ke liye
     if (e.target.id === "save-contact-btn" || e.target.closest("#save-contact-btn")) {
         const searchUidInput = document.getElementById("search-uid-input");
         const saveNameInput = document.getElementById("save-name-input");
-        if (searchUidInput?.value.trim() && saveNameInput?.value.trim()) {
-            socket.emit("save_contact", { myUid: my5DigitUid, targetUid: searchUidInput.value.trim(), customName: saveNameInput.value.trim() });
+        const targetUid = searchUidInput?.value.trim();
+        const customName = saveNameInput?.value.trim();
+
+        if (targetUid === my5DigitUid) {
+            alert("Bhaiya ji, aap apna khud ka UID save nahi kar sakte! Dusre account ka UID daaliye.");
+            return;
+        }
+
+        if (targetUid && customName) {
+            socket.emit("save_contact", { myUid: my5DigitUid, targetUid: targetUid, customName: customName });
         }
     }
 
@@ -206,7 +214,6 @@ document.addEventListener("click", (e) => {
     }
 });
 
-// Enter ki dabaane se auto-reload rokne ke liye
 document.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
         const messageInput = document.getElementById("message-input");
