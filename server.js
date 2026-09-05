@@ -5,7 +5,12 @@ const admin = require('firebase-admin');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+    cors: {
+        origin: ["https://zingarenaoffi1-sudo.github.io"],
+        methods: ["GET", "POST"]
+    }
+});
 
 admin.initializeApp({
     credential: admin.credential.cert({
@@ -37,7 +42,7 @@ io.on('connection', (socket) => {
         }
 
         connectedUsers.set(uid, socket.id);
-        socket.join(uid); 
+        socket.join(uid);
         
         const userDoc = await usersRef.doc(uid).get();
         socket.emit('user_data', userDoc.data());
