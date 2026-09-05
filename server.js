@@ -37,7 +37,7 @@ io.on('connection', (socket) => {
         }
 
         connectedUsers.set(uid, socket.id);
-        socket.join(uid); // Single reliable room routing
+        socket.join(uid); 
         
         const userDoc = await usersRef.doc(uid).get();
         socket.emit('user_data', userDoc.data());
@@ -62,14 +62,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    // FIX: Double emit hata diya gaya hai. Ab message ek hi baar jayega.
     socket.on('send_message', (data) => {
         io.to(data.receiverUid).emit('receive_message', data);
     });
 
-    // Call signaling ke liye bhi double emit hata diya hai
     socket.on('initiate_call', (data) => {
         io.to(data.targetUid).emit('incoming_call', data);
+    });
+
+    socket.on('cancel_call', (data) => {
+        io.to(data.targetUid).emit('call_cancelled');
     });
 
     socket.on('call_response', (data) => {
