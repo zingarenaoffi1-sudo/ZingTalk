@@ -16,6 +16,7 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
     socket.on('login_user', async (data) => {
@@ -35,7 +36,9 @@ io.on('connection', (socket) => {
             uid = snapshot.docs[0].data().uid;
         }
 
+        connectedUsers.set(uid, socket.id);
         socket.join(uid); 
+        
         const userDoc = await usersRef.doc(uid).get();
         socket.emit('user_data', userDoc.data());
     });
@@ -59,16 +62,23 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Double Routing: Ek sath Room aur Socket ID dono par try karega
     socket.on('send_message', (data) => {
         io.to(data.receiverUid).emit('receive_message', data);
+        const targetSocketId = connectedUsers.get(data.receiverUid);
+        if (targetSocketId) io.to(targetSocketId).emit('receive_message', data);
     });
 
     socket.on('initiate_call', (data) => {
         io.to(data.targetUid).emit('incoming_call', data);
+        const targetSocketId = connectedUsers.get(data.targetUid);
+        if (targetSocketId) io.to(targetSocketId).emit('incoming_call', data);
     });
 
     socket.on('call_response', (data) => {
         io.to(data.targetUid).emit('call_response_received', data);
+        const targetSocketId = connectedUsers.get(data.targetUid);
+        if (targetSocketId) io.to(targetSocketId).emit('call_response_received', data);
     });
 
     socket.on('webrtc_offer', (data) => {
@@ -85,6 +95,17 @@ io.on('connection', (socket) => {
 
     socket.on('webrtc_end_call', (data) => {
         io.to(data.targetUid).emit('webrtc_call_ended');
+        const targetSocketId = connectedUsers.get(data.targetUid);
+        if (targetSocketId) io.to(targetSocketId).emit('webrtc_call_ended');
+    });
+
+    socket.on('disconnect', () => {
+        for (const [uid, socketId] of connectedUsers.entries()) {
+            if (socketId === socket.id) {
+                connectedUsers.delete(uid);
+                break;
+            }
+        }
     });
 });
 
