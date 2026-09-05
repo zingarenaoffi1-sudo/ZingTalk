@@ -287,8 +287,8 @@ body {
     box-shadow: 0 4px 10px rgba(255,0,0,0.5);
 }
 
-/* Incoming Call Popup (Ekdum Upar Dikhega) */
-#incoming-call-overlay, .incoming-call-overlay {
+/* Incoming & Outgoing Call Popups (Ekdum Upar Dikhega) */
+#incoming-call-overlay, .incoming-call-overlay, #outgoing-call-overlay {
     position: fixed;
     top: 0;
     left: 0;
@@ -303,7 +303,7 @@ body {
     color: white;
 }
 
-#incoming-call-overlay h2, .incoming-call-overlay h2 {
+#incoming-call-overlay h2, .incoming-call-overlay h2, #outgoing-call-name {
     font-size: 30px;
     margin-bottom: 25px;
     color: #fff;
