@@ -18,6 +18,8 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+
+// Aapka purana Map logic wapas jodd diya gaya hai
 const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -44,7 +46,9 @@ io.on('connection', (socket) => {
             uid = userData.uid;
         }
 
+        // Map aur Socket Room dono set kar diye hain taaki Render sleep hone par bhi crash na ho
         connectedUsers.set(uid, socket.id);
+        socket.join(uid);
         
         const userDoc = await usersRef.doc(uid).get();
         socket.emit('user_data', userDoc.data());
@@ -69,53 +73,33 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Ab messages direct ID ke zariye safe room mein jayenge
     socket.on('send_message', (data) => {
-        const targetSocketId = connectedUsers.get(data.receiverUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('receive_message', data);
-        }
+        io.to(data.receiverUid).emit('receive_message', data);
     });
 
     socket.on('initiate_call', (data) => {
-        const targetSocketId = connectedUsers.get(data.targetUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('incoming_call', { callerUid: data.callerUid, callerName: data.callerName });
-        }
+        io.to(data.targetUid).emit('incoming_call', { callerUid: data.callerUid, callerName: data.callerName });
     });
 
     socket.on('call_response', (data) => {
-        const targetSocketId = connectedUsers.get(data.targetUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('call_response_received', { status: data.status });
-        }
+        io.to(data.targetUid).emit('call_response_received', { status: data.status });
     });
 
     socket.on('webrtc_offer', (data) => {
-        const targetSocketId = connectedUsers.get(data.targetUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('webrtc_offer_received', data);
-        }
+        io.to(data.targetUid).emit('webrtc_offer_received', data);
     });
 
     socket.on('webrtc_answer', (data) => {
-        const targetSocketId = connectedUsers.get(data.targetUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('webrtc_answer_received', data);
-        }
+        io.to(data.targetUid).emit('webrtc_answer_received', data);
     });
 
     socket.on('webrtc_ice_candidate', (data) => {
-        const targetSocketId = connectedUsers.get(data.targetUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('webrtc_ice_candidate_received', data);
-        }
+        io.to(data.targetUid).emit('webrtc_ice_candidate_received', data);
     });
 
     socket.on('webrtc_end_call', (data) => {
-        const targetSocketId = connectedUsers.get(data.targetUid);
-        if (targetSocketId) {
-            io.to(targetSocketId).emit('webrtc_call_ended');
-        }
+        io.to(data.targetUid).emit('webrtc_call_ended');
     });
 
     socket.on('disconnect', () => {
