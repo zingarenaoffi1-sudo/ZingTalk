@@ -53,6 +53,7 @@ let localStream = null;
 let peerConnection = null;
 let activeCallTarget = null;
 let currentCallType = "video";
+let iceCandidatesQueue = [];
 const rtcConfig = { iceServers: [{ urls: "stun:stun1.l.google.com:19302" }, { urls: "stun:stun2.l.google.com:19302" }] };
 
 socket.on("connect", () => {
@@ -159,7 +160,7 @@ function appendMessage(data, type) {
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
 }
 
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
     if (e.target.tagName === "BUTTON") e.preventDefault(); 
 
     if (e.target.id === "google-login-btn" || e.target.closest("#google-login-btn")) {
@@ -169,7 +170,7 @@ document.addEventListener("click", (e) => {
     if (e.target.id === "save-contact-btn" || e.target.closest("#save-contact-btn")) {
         const targetUid = document.getElementById("search-uid-input")?.value.trim();
         const customName = document.getElementById("save-name-input")?.value.trim();
-        if (targetUid === my5DigitUid) return alert("Aap apna khud ka UID save nahi kar sakte!");
+        if (targetUid === my5DigitUid) return alert("You cannot save your own UID!");
         if (targetUid && customName) socket.emit("save_contact", { myUid: my5DigitUid, targetUid, customName });
     }
 
@@ -183,7 +184,7 @@ document.addEventListener("click", (e) => {
 
     const text = e.target.innerText || "";
     if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn") {
-        if(!currentTargetUid) return alert("Call karne ke liye chat open karein!");
+        if(!currentTargetUid) return alert("Please open a chat to make a call!");
         currentCallType = text.includes("Video") ? "video" : "audio";
         activeCallTarget = currentTargetUid;
 
@@ -205,8 +206,13 @@ document.addEventListener("click", (e) => {
 
     if (e.target.id === "accept-call-btn") {
         document.getElementById("incoming-call-overlay").classList.add("hidden");
-        socket.emit("call_response", { targetUid: activeCallTarget, status: "accepted" });
-        startWebRTC(false);
+        try {
+            await startWebRTC(false);
+            socket.emit("call_response", { targetUid: activeCallTarget, status: "accepted" });
+        } catch(err) {
+            socket.emit("call_response", { targetUid: activeCallTarget, status: "rejected" });
+            activeCallTarget = null;
+        }
     }
 
     if (e.target.id === "reject-call-btn") {
@@ -244,35 +250,49 @@ socket.on("call_cancelled", () => {
     activeCallTarget = null;
 });
 
-socket.on("call_response_received", (data) => {
+socket.on("call_response_received", async (data) => {
     document.getElementById("outgoing-call-overlay").classList.add("hidden");
-    if(data.status === "accepted") startWebRTC(true);
-    else { alert("Saamne wale ne Call Reject kar di."); activeCallTarget = null; }
+    if(data.status === "accepted") {
+        await startWebRTC(true);
+    } else { 
+        alert("The other person rejected the call."); 
+        activeCallTarget = null; 
+    }
 });
 
 async function startWebRTC(isCaller) {
     document.getElementById("full-call-screen").classList.remove("hidden");
     const localVideo = document.getElementById("local-video");
     
-    // FIX: Audio Call mein chota camera totally hide kar do
     if(currentCallType === "audio") {
         if(localVideo) localVideo.classList.add("hidden");
     } else {
         if(localVideo) localVideo.classList.remove("hidden");
     }
     
-    try {
-        const constraints = { audio: true, video: currentCallType === "video" };
-        localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        if(localVideo && currentCallType === "video") { 
-            localVideo.srcObject = localStream; 
-        }
-    } catch (err) { alert("Camera/Mic permission zaroori hai!"); endCall(); return; }
+    const constraints = { audio: true, video: currentCallType === "video" };
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    if(localVideo && currentCallType === "video") { 
+        localVideo.srcObject = localStream; 
+    }
     
     peerConnection = new RTCPeerConnection(rtcConfig);
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-    peerConnection.ontrack = (event) => { const remote = document.getElementById("remote-video"); if(remote) remote.srcObject = event.streams[0]; };
-    peerConnection.onicecandidate = (event) => { if(event.candidate) socket.emit("webrtc_ice_candidate", { targetUid: activeCallTarget, candidate: event.candidate }); };
+    
+    peerConnection.ontrack = (event) => { 
+        const remote = document.getElementById("remote-video"); 
+        if(remote) {
+            remote.srcObject = event.streams[0]; 
+            remote.play().catch(e => console.log(e));
+        }
+    };
+    
+    peerConnection.onicecandidate = (event) => { 
+        if(event.candidate) {
+            socket.emit("webrtc_ice_candidate", { targetUid: activeCallTarget, candidate: event.candidate });
+        }
+    };
     
     if(isCaller) {
         const offer = await peerConnection.createOffer();
@@ -282,24 +302,47 @@ async function startWebRTC(isCaller) {
 }
 
 socket.on("webrtc_offer_received", async (data) => {
+    if(!peerConnection) return;
     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     socket.emit("webrtc_answer", { targetUid: activeCallTarget, answer });
+    
+    while(iceCandidatesQueue.length > 0) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(iceCandidatesQueue.shift()));
+    }
 });
-socket.on("webrtc_answer_received", async (data) => { await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer)); });
-socket.on("webrtc_ice_candidate_received", async (data) => { if(peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)); });
+
+socket.on("webrtc_answer_received", async (data) => { 
+    if(!peerConnection) return;
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer)); 
+    
+    while(iceCandidatesQueue.length > 0) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(iceCandidatesQueue.shift()));
+    }
+});
+
+socket.on("webrtc_ice_candidate_received", async (data) => { 
+    if(peerConnection && peerConnection.remoteDescription) {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    } else {
+        iceCandidatesQueue.push(data.candidate);
+    }
+});
 
 function endCall() {
     if(peerConnection) peerConnection.close();
     if(localStream) localStream.getTracks().forEach(track => track.stop());
     socket.emit("webrtc_end_call", { targetUid: activeCallTarget });
     activeCallTarget = null;
+    iceCandidatesQueue = [];
     document.getElementById("full-call-screen").classList.add("hidden");
 }
+
 socket.on("webrtc_call_ended", () => {
     if(peerConnection) peerConnection.close();
     if(localStream) localStream.getTracks().forEach(track => track.stop());
     document.getElementById("full-call-screen").classList.add("hidden");
+    iceCandidatesQueue = [];
     activeCallTarget = null;
 });
