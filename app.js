@@ -14,7 +14,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
-export const socket = io("https://zingtalk-4clj.onrender.com");
+export const socket = io("https://zingtalk-4clj.onrender.com", { transports: ["websocket", "polling"] });
+
+// Sabse zaroori lock: Yeh kisi bhi form ko page refresh nahi karne dega
+window.addEventListener("submit", (e) => {
+    e.preventDefault();
+});
 
 if (!document.getElementById("call-screen-container")) {
     const div = document.createElement("div");
@@ -110,7 +115,6 @@ function openChat(contact) {
     const avatarEl = document.getElementById("chat-avatar");
     if(avatarEl) avatarEl.innerText = contact.name.charAt(0).toUpperCase();
     
-    // HTML me chat-messages ka container sahi se dhundne ka logic
     const chatMessagesArea = document.getElementById("chat-messages") || document.querySelector(".messages-container");
     if (chatMessagesArea) {
         chatMessagesArea.innerHTML = "";
@@ -118,7 +122,6 @@ function openChat(contact) {
     }
 }
 
-// ==== MESSAGE SEND LOGIC ====
 function sendMessageLogic() {
     const messageInput = document.getElementById("message-input");
     const text = messageInput?.value.trim();
@@ -129,8 +132,6 @@ function sendMessageLogic() {
         if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
         chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
         messageInput.value = "";
-    } else if (!currentTargetUid) {
-        alert("Pehle contact select karein chat karne ke liye!");
     }
 }
 
@@ -157,17 +158,13 @@ function appendMessage(data, type) {
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
 }
 
-// ==== ALL CLICKS EVENT DELEGATION ====
 document.addEventListener("click", (e) => {
-    // 1. Agar button click ho raha hai toh page refresh roko
-    if (e.target.tagName === "BUTTON") e.preventDefault();
+    if (e.target.tagName === "BUTTON") e.preventDefault(); 
 
-    // 2. Google Login
     if (e.target.id === "google-login-btn" || e.target.closest("#google-login-btn")) {
         signInWithPopup(auth, provider).catch(err => alert(err.message));
     }
     
-    // 3. Save Contact
     if (e.target.id === "save-contact-btn" || e.target.closest("#save-contact-btn")) {
         const searchUidInput = document.getElementById("search-uid-input");
         const saveNameInput = document.getElementById("save-name-input");
@@ -176,19 +173,16 @@ document.addEventListener("click", (e) => {
         }
     }
 
-    // 4. Back Button
     if (e.target.id === "back-btn" || e.target.closest("#back-btn")) {
         currentTargetUid = null;
         document.getElementById("chat-screen")?.classList.add("hidden");
         document.getElementById("main-screen")?.classList.remove("hidden");
     }
 
-    // 5. Send Message Button
     if (e.target.id === "send-btn" || e.target.closest("#send-btn")) {
         sendMessageLogic();
     }
 
-    // 6. Audio/Video Call Button
     const text = e.target.innerText || "";
     if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn") {
         if(!currentTargetUid) return alert("Call karne ke liye chat open karein!");
@@ -197,7 +191,6 @@ document.addEventListener("click", (e) => {
         socket.emit("initiate_call", { callerUid: my5DigitUid, targetUid: currentTargetUid, callerName: currentUser.displayName, type: currentCallType });
     }
 
-    // 7. Accept/Reject/End Call (No Auto-Answer anymore)
     if (e.target.id === "accept-call-btn") {
         document.getElementById("incoming-call-overlay").classList.add("hidden");
         socket.emit("call_response", { targetUid: activeCallTarget, status: "accepted" });
@@ -213,7 +206,7 @@ document.addEventListener("click", (e) => {
     }
 });
 
-// ==== ENTER KEY SE MESSAGE BHEJNA ====
+// Enter ki dabaane se auto-reload rokne ke liye
 document.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
         const messageInput = document.getElementById("message-input");
@@ -224,7 +217,6 @@ document.addEventListener("keypress", (e) => {
     }
 });
 
-// ==== CALL LOGIC ====
 socket.on("incoming_call", (data) => {
     activeCallTarget = data.callerUid;
     currentCallType = data.type; 
@@ -255,7 +247,7 @@ async function startWebRTC(isCaller) {
             localVideo.style.display = currentCallType === "video" ? "block" : "none";
         }
     } catch (err) {
-        alert("Camera ya Mic ki permission dena zaroori hai!");
+        alert("Camera ya Mic ki permission allow karna zaroori hai!");
         endCall();
         return;
     }
