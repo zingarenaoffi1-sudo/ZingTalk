@@ -36,5 +36,4 @@ A5:09:11:14:BD:91:46:55:C4:2F:E3:8E:CE:5D:C1:2C:46:0C:F5:28:EE:5C:15:2E:47:1D:B5
 
 ## 🚀 GitHub Actions Output
 When you push code or run the **Build Android APK** workflow in GitHub Actions, it will generate:
-- **`ZingTalk-Release-Signed-APK`**: The production-signed APK ready to install or publish.
-- **`ZingTalk-Debug-APK`**: Standard debug APK for development testing.
+- **`ZingTalk-APK`**: The single official production signed APK (`ZingTalk.apk`) ready to install on Android phones, Amazon Fire Tablets, or upload to app stores. No confusion, single APK only.

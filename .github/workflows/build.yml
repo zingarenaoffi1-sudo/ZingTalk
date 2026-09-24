@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-apk:
-    name: Build Signed Android Release & Debug APKs
+    name: Build Official Signed ZingTalk APK
     runs-on: ubuntu-latest
 
     steps:
@@ -133,22 +133,18 @@ jobs:
           '
           echo "build.gradle successfully updated with release signingConfig"
 
-      - name: Build Android Release & Debug APKs
+      - name: Build Official Signed Android APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace
+          # Copy and rename the production signed APK to ZingTalk.apk in root
+          cp app/build/outputs/apk/release/*-release*.apk ../ZingTalk.apk 2>/dev/null || cp app/build/outputs/apk/release/*.apk ../ZingTalk.apk
+          ls -lh ../ZingTalk.apk
 
-      - name: Upload Signed Release APK Artifact
+      - name: Upload Official ZingTalk APK
         uses: actions/upload-artifact@v4
         with:
-          name: ZingTalk-Release-Signed-APK
-          path: android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: warn
-
-      - name: Upload Debug APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ZingTalk-Debug-APK
-          path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: warn
+          name: ZingTalk-APK
+          path: ZingTalk.apk
+          if-no-files-found: error
