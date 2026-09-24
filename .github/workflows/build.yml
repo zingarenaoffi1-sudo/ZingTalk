@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK (ZingTalk)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-apk:
-    name: Build Android APK (ZingTalk)
+    name: Build Signed Android Release & Debug APKs
     runs-on: ubuntu-latest
 
     steps:
@@ -39,23 +39,62 @@ jobs:
           fi
           npx cap sync android
 
-      - name: Inject google-services.json
+      - name: Inject google-services.json & Release Keystore
         run: |
+          mkdir -p android/app
           if [ -f "google-services.json" ]; then
-            mkdir -p android/app
             cp google-services.json android/app/google-services.json
             echo "google-services.json successfully copied to android/app/"
           fi
+          if [ -f "zingtalk-release.keystore" ]; then
+            cp zingtalk-release.keystore android/app/zingtalk-release.keystore
+            echo "zingtalk-release.keystore successfully copied to android/app/"
+          fi
 
-      - name: Build Android Debug APK
+      - name: Configure Signing in build.gradle
+        working-directory: android/app
+        run: |
+          python3 -c '
+          with open("build.gradle", "r") as f:
+              content = f.read()
+
+          signing_block = """
+              signingConfigs {
+                  release {
+                      storeFile file("zingtalk-release.keystore")
+                      storePassword "zingtalk123456"
+                      keyAlias "zingtalk"
+                      keyPassword "zingtalk123456"
+                  }
+              }
+          """
+          if "signingConfigs {" not in content:
+              content = content.replace("android {", "android {" + signing_block, 1)
+
+          if "signingConfig signingConfigs.release" not in content:
+              content = content.replace("buildTypes {", "buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            minifyEnabled false\n        }", 1)
+
+          with open("build.gradle", "w") as f:
+              f.write(content)
+          '
+          echo "build.gradle successfully updated with release signingConfig"
+
+      - name: Build Android Release & Debug APKs
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease assembleDebug --stacktrace
 
-      - name: Upload APK Artifact
+      - name: Upload Signed Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZingTalk-Release-Signed-APK
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
+
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ZingTalk-Debug-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: warn
