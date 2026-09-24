@@ -355,7 +355,9 @@ function sendMessageLogic() {
 
         if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
         chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
-        localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
+        try {
+            localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
+        } catch (_) {}
 
         messageInput.value = "";
     }
@@ -367,33 +369,247 @@ function appendMessage(data, type) {
     const div = document.createElement("div");
     div.className = `msg-bubble ${type}`;
     
+    let mediaHtml = "";
+    if (data.media) {
+        if (data.media.type === "image") {
+            mediaHtml = `<img src="${data.media.dataUrl}" class="chat-media-img" alt="${escapeHtml(data.media.name || 'Photo')}" title="Click to view full size" />`;
+        } else if (data.media.type === "audio") {
+            mediaHtml = `
+                <div class="chat-media-audio">
+                    <audio controls preload="metadata" src="${data.media.dataUrl}"></audio>
+                </div>
+            `;
+        } else if (data.media.type === "video") {
+            mediaHtml = `
+                <video controls preload="metadata" playsinline src="${data.media.dataUrl}" class="chat-media-video"></video>
+            `;
+        }
+    }
+
+    const captionHtml = data.text ? `<div class="${data.media ? 'media-caption' : ''}">${escapeHtml(data.text)}</div>` : '';
     const checkmark = type === 'msg-sent' ? `<span style="color:#53bdeb; margin-left: 2px;">✓✓</span>` : '';
+
     div.innerHTML = `
-        ${escapeHtml(data.text)}
+        ${mediaHtml}
+        ${captionHtml}
         <span class="msg-meta">
             ${data.timestamp || ''}
             ${checkmark}
         </span>
     `;
+
+    // Click on shared image to open full-screen viewer
+    if (data.media && data.media.type === "image") {
+        const imgEl = div.querySelector(".chat-media-img");
+        if (imgEl) {
+            imgEl.addEventListener("click", () => openMediaViewer(data.media));
+        }
+    }
+
     chatMessagesArea.appendChild(div);
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
 }
 
 function escapeHtml(text) {
+    if (!text) return "";
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
 }
 
-// ----------------- WebRTC Calling Engine -----------------
+// ----------------- Zero-Server Media & Voice Note Engine -----------------
+function openMediaViewer(mediaData) {
+    const modal = document.getElementById("media-viewer-modal");
+    const content = document.getElementById("media-viewer-content");
+    const downloadLink = document.getElementById("media-download-link");
+    if (!modal || !content) return;
+
+    content.innerHTML = "";
+    if (mediaData.type === "image") {
+        const img = document.createElement("img");
+        img.src = mediaData.dataUrl;
+        img.className = "media-viewer-preview";
+        img.alt = mediaData.name || "Preview";
+        content.appendChild(img);
+    } else if (mediaData.type === "video") {
+        const video = document.createElement("video");
+        video.src = mediaData.dataUrl;
+        video.controls = true;
+        video.autoplay = true;
+        video.className = "media-viewer-preview";
+        content.appendChild(video);
+    }
+
+    if (downloadLink) {
+        downloadLink.href = mediaData.dataUrl;
+        downloadLink.download = mediaData.name || `zingtalk_${Date.now()}`;
+    }
+
+    modal.classList.remove("hidden");
+}
+
+// Media file input handler (Zero server storage - direct peer transmission)
+const mediaFileInput = document.getElementById("media-file-input");
+if (mediaFileInput) {
+    mediaFileInput.addEventListener("change", () => {
+        const file = mediaFileInput.files && mediaFileInput.files[0];
+        if (!file) return;
+        if (!currentTargetUid) {
+            showToast("Please open a conversation to share media");
+            return;
+        }
+
+        if (file.size > 25 * 1024 * 1024) {
+            showToast("File size too large (max 25MB). Direct peer transmission limit.");
+            return;
+        }
+
+        showToast(`Sending ${file.name}... (Zero server storage)`);
+        const reader = new FileReader();
+        reader.onload = () => {
+            let mediaType = "file";
+            if (file.type.startsWith("image/")) mediaType = "image";
+            else if (file.type.startsWith("audio/")) mediaType = "audio";
+            else if (file.type.startsWith("video/")) mediaType = "video";
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const messageInput = document.getElementById("message-input");
+            const caption = messageInput ? messageInput.value.trim() : "";
+
+            const msgData = {
+                senderUid: my10DigitUid,
+                receiverUid: currentTargetUid,
+                text: caption,
+                media: {
+                    type: mediaType,
+                    dataUrl: reader.result,
+                    name: file.name,
+                    size: file.size
+                },
+                timestamp: timeStr
+            };
+
+            if (socket) {
+                socket.emit("send_message", msgData);
+            }
+            appendMessage(msgData, "msg-sent");
+            if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
+            chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
+            try {
+                localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
+            } catch (err) {
+                console.warn("Storage note:", err);
+            }
+
+            if (messageInput) messageInput.value = "";
+            mediaFileInput.value = "";
+            document.getElementById("attachment-popover")?.classList.add("hidden");
+            showToast("Media sent directly (Zero server storage)");
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Direct Live Voice Note Recorder
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecordingVoice = false;
+
+async function toggleVoiceRecording() {
+    if (isRecordingVoice) {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+        }
+        isRecordingVoice = false;
+        showToast("Processing voice note...");
+        return;
+    }
+
+    if (!currentTargetUid) {
+        showToast("Please open a chat to record a voice note");
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
+
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const msgData = {
+                    senderUid: my10DigitUid,
+                    receiverUid: currentTargetUid,
+                    text: "🎙️ Voice Note",
+                    media: {
+                        type: "audio",
+                        dataUrl: reader.result,
+                        name: "voice_note_" + Date.now() + ".webm",
+                        size: audioBlob.size
+                    },
+                    timestamp: timeStr
+                };
+
+                if (socket) {
+                    socket.emit("send_message", msgData);
+                }
+                appendMessage(msgData, "msg-sent");
+                if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
+                chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
+                try {
+                    localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
+                } catch (_) {}
+
+                showToast("Voice note sent (Zero server storage)");
+            };
+            reader.readAsDataURL(audioBlob);
+            stream.getTracks().forEach(t => t.stop());
+        };
+
+        mediaRecorder.start();
+        isRecordingVoice = true;
+        showToast("🔴 Recording voice note... Click Voice Note again to send");
+        document.getElementById("attachment-popover")?.classList.add("hidden");
+    } catch (err) {
+        console.warn("Microphone access error:", err);
+        showToast("Microphone access needed: " + err.message);
+    }
+}
+
+// ----------------- WebRTC Calling Engine (Audio & Video) -----------------
 async function startWebRTC(isCaller) {
     document.getElementById("full-call-screen")?.classList.remove("hidden");
     const localVideo = document.getElementById("local-video");
+    const remoteVideo = document.getElementById("remote-video");
+    const audioVisualizer = document.getElementById("audio-call-visualizer");
+    const audioPeerName = document.getElementById("audio-call-peer-name");
+
+    let peerNameToShow = "UID: " + activeCallTarget;
+    const knownContact = myContacts.find(c => c.uid === activeCallTarget);
+    if (knownContact) peerNameToShow = knownContact.name;
 
     if (currentCallType === "audio") {
         if (localVideo) localVideo.classList.add("hidden");
+        if (remoteVideo) remoteVideo.style.opacity = "0"; // Invisible video but plays audio stream
+        if (audioVisualizer) {
+            audioVisualizer.classList.remove("hidden");
+            if (audioPeerName) audioPeerName.innerText = peerNameToShow;
+        }
     } else {
         if (localVideo) localVideo.classList.remove("hidden");
+        if (remoteVideo) remoteVideo.style.opacity = "1";
+        if (audioVisualizer) audioVisualizer.classList.add("hidden");
     }
 
     const constraints = { audio: true, video: currentCallType === "video" };
@@ -427,7 +643,7 @@ async function startWebRTC(isCaller) {
         }
     };
 
-    // Start Call Timer
+    // Start Call Duration Timer
     callSecondsElapsed = 0;
     clearInterval(callDurationTimer);
     const timerEl = document.getElementById("call-timer");
@@ -435,7 +651,8 @@ async function startWebRTC(isCaller) {
         callSecondsElapsed++;
         const mins = String(Math.floor(callSecondsElapsed / 60)).padStart(2, '0');
         const secs = String(callSecondsElapsed % 60).padStart(2, '0');
-        if (timerEl) timerEl.innerText = `${mins}:${secs} • ZingTalk HD`;
+        const modeLabel = currentCallType === "video" ? "HD Video" : "HD Audio";
+        if (timerEl) timerEl.innerText = `${mins}:${secs} • ${modeLabel}`;
     }, 1000);
 
     if (isCaller) {
@@ -462,6 +679,7 @@ function endCallCleanup() {
     activeCallTarget = null;
     iceCandidatesQueue = [];
     document.getElementById("full-call-screen")?.classList.add("hidden");
+    document.getElementById("audio-call-visualizer")?.classList.add("hidden");
 }
 
 function endCall() {
@@ -489,6 +707,11 @@ function clearLoginError() {
 // ----------------- Global Event Listeners -----------------
 document.addEventListener("click", async (e) => {
     if (e.target.tagName === "BUTTON") e.preventDefault();
+
+    // Close Attachment Popover when clicking outside
+    if (!e.target.closest("#attach-btn") && !e.target.closest("#attachment-popover")) {
+        document.getElementById("attachment-popover")?.classList.add("hidden");
+    }
 
     // 1. Login Tab Switchers
     if (e.target.id === "tab-btn-google") {
@@ -606,7 +829,7 @@ document.addEventListener("click", async (e) => {
         loginUserSession(guestUser);
     }
 
-    // Open Profile Modal (clicking profile section or header profile button)
+    // Open Profile Modal
     if (e.target.id === "my-profile" || e.target.closest("#my-profile") || e.target.id === "header-profile-btn" || e.target.closest("#header-profile-btn")) {
         const displayName = (currentUser && currentUser.displayName) ? currentUser.displayName : "User";
         const email = (currentUser && currentUser.email) ? currentUser.email : "No email linked";
@@ -674,6 +897,75 @@ document.addEventListener("click", async (e) => {
         sendMessageLogic();
     }
 
+    // Attachment Button: Toggle Popover
+    if (e.target.id === "attach-btn" || e.target.closest("#attach-btn")) {
+        document.getElementById("attachment-popover")?.classList.toggle("hidden");
+    }
+
+    // Attachment Option: Photo
+    if (e.target.id === "attach-photo-btn" || e.target.closest("#attach-photo-btn")) {
+        const input = document.getElementById("media-file-input");
+        if (input) {
+            input.accept = "image/*";
+            input.click();
+        }
+        document.getElementById("attachment-popover")?.classList.add("hidden");
+    }
+
+    // Attachment Option: Audio
+    if (e.target.id === "attach-audio-btn" || e.target.closest("#attach-audio-btn")) {
+        const input = document.getElementById("media-file-input");
+        if (input) {
+            input.accept = "audio/*";
+            input.click();
+        }
+        document.getElementById("attachment-popover")?.classList.add("hidden");
+    }
+
+    // Attachment Option: Voice Note Record
+    if (e.target.id === "attach-record-btn" || e.target.closest("#attach-record-btn")) {
+        toggleVoiceRecording();
+    }
+
+    // Attachment Option: Video
+    if (e.target.id === "attach-video-btn" || e.target.closest("#attach-video-btn")) {
+        const input = document.getElementById("media-file-input");
+        if (input) {
+            input.accept = "video/*";
+            input.click();
+        }
+        document.getElementById("attachment-popover")?.classList.add("hidden");
+    }
+
+    // Close Media Viewer Modal
+    if (e.target.id === "close-media-viewer-btn" || e.target.closest("#close-media-viewer-btn")) {
+        document.getElementById("media-viewer-modal")?.classList.add("hidden");
+    }
+
+    // Privacy Policy & Terms Modal Triggers
+    if (e.target.id === "open-policy-btn-login" || e.target.id === "header-policy-btn" || e.target.closest("#header-policy-btn") || e.target.id === "open-policy-btn-modal" || e.target.closest("#open-policy-btn-modal")) {
+        document.getElementById("policy-modal")?.classList.remove("hidden");
+    }
+
+    // Close Privacy Policy Modal
+    if (e.target.id === "close-policy-btn" || e.target.closest("#close-policy-btn")) {
+        document.getElementById("policy-modal")?.classList.add("hidden");
+    }
+
+    // Privacy Policy Tabs
+    if (e.target.id === "tab-privacy-btn") {
+        document.getElementById("tab-privacy-btn")?.classList.add("active");
+        document.getElementById("tab-terms-btn")?.classList.remove("active");
+        document.getElementById("policy-privacy-text")?.classList.remove("hidden");
+        document.getElementById("policy-terms-text")?.classList.add("hidden");
+    }
+    if (e.target.id === "tab-terms-btn") {
+        document.getElementById("tab-terms-btn")?.classList.add("active");
+        document.getElementById("tab-privacy-btn")?.classList.remove("active");
+        document.getElementById("policy-terms-text")?.classList.remove("hidden");
+        document.getElementById("policy-privacy-text")?.classList.add("hidden");
+    }
+
     // Call buttons (Audio / Video)
     const text = e.target.innerText || "";
     if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn" || e.target.closest("#video-call-btn") || e.target.closest("#audio-call-btn")) {
@@ -692,7 +984,7 @@ document.addEventListener("click", async (e) => {
         }
         const outgoingType = document.getElementById("outgoing-call-type");
         if (outgoingType) {
-            outgoingType.innerText = `Calling (${currentCallType === 'video' ? 'Video' : 'Audio'})...`;
+            outgoingType.innerText = `Calling (${currentCallType === 'video' ? 'Video' : 'HD Audio'})...`;
         }
         document.getElementById("outgoing-call-overlay")?.classList.remove("hidden");
 
@@ -752,6 +1044,23 @@ document.addEventListener("click", async (e) => {
                 if (muteBtn) {
                     muteBtn.style.background = isMicMuted ? "#ea4335" : "rgba(255,255,255,0.2)";
                 }
+            }
+        }
+    }
+
+    // Toggle Camera in Call
+    if (e.target.id === "toggle-video-btn" || e.target.closest("#toggle-video-btn")) {
+        if (localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = !videoTrack.enabled;
+                showToast(videoTrack.enabled ? "Camera enabled" : "Camera turned off");
+                const toggleBtn = document.getElementById("toggle-video-btn");
+                if (toggleBtn) {
+                    toggleBtn.style.background = videoTrack.enabled ? "rgba(255,255,255,0.2)" : "#ea4335";
+                }
+            } else {
+                showToast("No active camera track in audio mode");
             }
         }
     }

@@ -89,7 +89,7 @@ body {
     max-width: 380px;
     background: white;
     border-radius: 24px;
-    padding: 32px 24px 24px;
+    padding: 28px 22px 20px;
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
     display: flex;
     flex-direction: column;
@@ -98,8 +98,8 @@ body {
 }
 
 .brand-badge {
-    width: 68px;
-    height: 68px;
+    width: 64px;
+    height: 64px;
     background: linear-gradient(135deg, #128c7e 0%, #25d366 100%);
     border-radius: 20px;
     display: flex;
@@ -107,11 +107,11 @@ body {
     justify-content: center;
     color: white;
     box-shadow: 0 8px 20px rgba(37, 211, 102, 0.35);
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .brand-title {
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 800;
     color: #075e54;
     letter-spacing: -0.5px;
@@ -120,8 +120,8 @@ body {
 .brand-subtitle {
     font-size: 13px;
     color: #667781;
-    margin-top: 4px;
-    margin-bottom: 24px;
+    margin-top: 3px;
+    margin-bottom: 20px;
     text-align: center;
 }
 
@@ -133,15 +133,15 @@ body {
     border-radius: 14px;
     padding: 4px;
     gap: 4px;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
 }
 
 .login-tab {
     flex: 1;
     border: none;
     background: transparent;
-    padding: 10px 4px;
-    font-size: 13px;
+    padding: 9px 4px;
+    font-size: 12.5px;
     font-weight: 600;
     color: #54656f;
     border-radius: 10px;
@@ -170,16 +170,17 @@ body {
 
 .input-icon {
     position: absolute;
-    left: 16px;
+    left: 14px;
     top: 50%;
     transform: translateY(-50%);
     color: #8696a0;
     pointer-events: none;
+    font-size: 14px;
 }
 
 .form-input {
     width: 100%;
-    padding: 13px 16px 13px 44px;
+    padding: 12px 14px 12px 40px;
     border: 1.5px solid #e9edef;
     background: #f8fafc;
     border-radius: 14px;
@@ -197,11 +198,11 @@ body {
 
 .primary-btn {
     width: 100%;
-    padding: 13px 20px;
+    padding: 12px 18px;
     border: none;
     background: #008069;
     color: white;
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 700;
     border-radius: 14px;
     cursor: pointer;
@@ -235,9 +236,9 @@ body {
 
 .auth-subtoggle {
     text-align: center;
-    font-size: 13px;
+    font-size: 12.5px;
     color: #667781;
-    margin-top: 6px;
+    margin-top: 4px;
 }
 
 .auth-subtoggle .action-link {
@@ -245,6 +246,20 @@ body {
     font-weight: 700;
     cursor: pointer;
     margin-left: 4px;
+}
+
+.policy-footer-link {
+    margin-top: 14px;
+    font-size: 11.5px;
+    color: #8696a0;
+    text-align: center;
+    cursor: pointer;
+    text-decoration: underline;
+    transition: color 0.15s;
+}
+
+.policy-footer-link:hover {
+    color: #008069;
 }
 
 .error-box {
@@ -263,7 +278,7 @@ body {
 .main-header {
     background: #008069;
     color: white;
-    padding: 14px 16px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -307,10 +322,10 @@ body {
 }
 
 .avatar.large {
-    width: 76px;
-    height: 76px;
-    font-size: 32px;
-    margin: 0 auto 12px;
+    width: 72px;
+    height: 72px;
+    font-size: 30px;
+    margin: 0 auto 10px;
     box-shadow: 0 6px 18px rgba(0,0,0,0.1);
 }
 
@@ -332,7 +347,7 @@ body {
 }
 
 .user-meta .name-text {
-    font-size: 16px;
+    font-size: 15.5px;
     font-weight: 700;
     color: white;
     white-space: nowrap;
@@ -352,13 +367,13 @@ body {
 
 .header-icons {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     align-items: center;
 }
 
 .icon-btn {
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     border: none;
     background: transparent;
@@ -377,7 +392,7 @@ body {
 /* Search UID Section */
 .search-bar-card {
     background: white;
-    padding: 12px 16px;
+    padding: 10px 14px;
     border-bottom: 1px solid #e9edef;
     display: flex;
     flex-direction: column;
@@ -391,7 +406,7 @@ body {
 
 .uid-search-input {
     flex: 1;
-    padding: 10px 14px;
+    padding: 10px 12px;
     border: 1.5px solid #e9edef;
     background: #f0f2f5;
     border-radius: 12px;
@@ -406,7 +421,7 @@ body {
 }
 
 .add-contact-btn {
-    padding: 10px 18px;
+    padding: 9px 16px;
     background: #008069;
     color: white;
     border: none;
@@ -417,6 +432,7 @@ body {
     white-space: nowrap;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     transition: background 0.15s;
 }
@@ -435,8 +451,8 @@ body {
 .contact-row {
     display: flex;
     align-items: center;
-    padding: 14px 16px;
-    gap: 14px;
+    padding: 12px 16px;
+    gap: 12px;
     border-bottom: 1px solid #f2f5f6;
     cursor: pointer;
     transition: background 0.15s;
@@ -471,9 +487,9 @@ body {
     color: white;
     font-size: 11px;
     font-weight: 800;
-    padding: 3px 8px;
+    padding: 2px 7px;
     border-radius: 12px;
-    min-width: 20px;
+    min-width: 18px;
     text-align: center;
 }
 
@@ -485,10 +501,10 @@ body {
 .chat-header {
     background: #008069;
     color: white;
-    padding: 10px 14px;
+    padding: 10px 12px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.18);
     z-index: 10;
 }
@@ -508,7 +524,7 @@ body {
 }
 
 .chat-header-name {
-    font-size: 15.5px;
+    font-size: 15px;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
@@ -518,6 +534,7 @@ body {
 .chat-header-status {
     font-size: 11px;
     color: #dcf8c6;
+    font-family: monospace;
 }
 
 .call-triggers {
@@ -529,14 +546,14 @@ body {
     background: rgba(255,255,255,0.16);
     border: 1px solid rgba(255,255,255,0.22);
     color: white;
-    padding: 7px 12px;
+    padding: 7px 11px;
     border-radius: 18px;
-    font-size: 12.5px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     transition: all 0.15s;
 }
 
@@ -544,14 +561,14 @@ body {
     background: rgba(255,255,255,0.28);
 }
 
-/* Messages Area with authentic WhatsApp pattern */
+/* Messages Area */
 .messages-container {
     flex: 1;
     background-color: #efeae2;
     background-image: radial-gradient(#d1c7b7 0.85px, transparent 0.85px), radial-gradient(#d1c7b7 0.85px, #efeae2 0.85px);
     background-size: 34px 34px;
     background-position: 0 0, 17px 17px;
-    padding: 16px;
+    padding: 14px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -561,21 +578,21 @@ body {
 .date-divider {
     align-self: center;
     background: rgba(255, 255, 255, 0.9);
-    padding: 5px 12px;
+    padding: 4px 10px;
     border-radius: 8px;
     font-size: 11px;
     font-weight: 600;
     color: #54656f;
     box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-    margin: 4px 0 8px;
+    margin: 2px 0 6px;
 }
 
 .msg-bubble {
-    max-width: 80%;
-    padding: 8px 12px;
+    max-width: 82%;
+    padding: 7px 10px;
     border-radius: 12px;
     font-size: 14px;
-    line-height: 1.45;
+    line-height: 1.4;
     position: relative;
     box-shadow: 0 1px 2px rgba(0,0,0,0.12);
     word-break: break-word;
@@ -604,36 +621,95 @@ body {
     align-items: center;
     justify-content: flex-end;
     gap: 4px;
-    font-size: 10.5px;
+    font-size: 10px;
     color: #667781;
     margin-top: 3px;
     float: right;
     margin-left: 10px;
 }
 
-/* Chat Input Bar */
+/* Media Cards in Chat (Zero Server Storage) */
+.chat-media-img {
+    max-width: 100%;
+    max-height: 240px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: block;
+    object-fit: cover;
+    margin-bottom: 4px;
+}
+
+.chat-media-video {
+    max-width: 100%;
+    max-height: 240px;
+    border-radius: 8px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.chat-media-audio {
+    padding: 4px 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.chat-media-audio audio {
+    width: 230px;
+    height: 38px;
+}
+
+.media-caption {
+    font-size: 13.5px;
+    color: #111b21;
+    margin-top: 4px;
+    line-height: 1.35;
+}
+
+/* Chat Input Bar & Attachments */
 .chat-input-bar {
     background: #f0f2f5;
-    padding: 8px 12px;
+    padding: 8px 10px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    position: relative;
+}
+
+.attach-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #54656f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+.attach-btn:hover {
+    background: #e9edef;
 }
 
 .chat-input {
     flex: 1;
-    padding: 11px 16px;
+    padding: 10px 14px;
     background: white;
     border: none;
-    border-radius: 24px;
+    border-radius: 20px;
     font-size: 14.5px;
     outline: none;
     box-shadow: 0 1px 2px rgba(0,0,0,0.08);
 }
 
 .send-fab {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: #008069;
     color: white;
@@ -651,7 +727,62 @@ body {
     transform: scale(0.92);
 }
 
-/* ---------------- CALL OVERLAYS (CINEMATIC DARK) ---------------- */
+/* Attachment Menu Popover */
+.attachment-popover {
+    position: absolute;
+    bottom: 56px;
+    left: 10px;
+    background: white;
+    border-radius: 16px;
+    padding: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    display: flex;
+    gap: 12px;
+    z-index: 50;
+    border: 1px solid #e9edef;
+    animation: popUp 0.15s ease-out;
+}
+
+@keyframes popUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.attach-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 10px;
+    transition: background 0.15s;
+}
+
+.attach-option:hover {
+    background: #f0f2f5;
+}
+
+.attach-icon-circle {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: white;
+}
+
+.attach-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #54656f;
+}
+
+/* ---------------- ACTIVE WEBRTC CALL SCREEN ---------------- */
 #full-call-screen {
     position: fixed;
     top: 0;
@@ -670,15 +801,27 @@ body {
     object-fit: cover;
 }
 
+.audio-call-visualizer {
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    z-index: 1000000;
+}
+
 #local-video {
     position: absolute;
-    bottom: 100px;
-    right: 20px;
+    bottom: 96px;
+    right: 18px;
     width: 110px;
-    height: 160px;
+    height: 156px;
     background: #111b21;
     object-fit: cover;
-    border-radius: 16px;
+    border-radius: 14px;
     border: 2px solid white;
     box-shadow: 0 8px 24px rgba(0,0,0,0.6);
     z-index: 1000000;
@@ -686,7 +829,7 @@ body {
 
 .call-top-bar {
     position: absolute;
-    top: 24px;
+    top: 20px;
     left: 0;
     width: 100%;
     display: flex;
@@ -710,7 +853,7 @@ body {
 
 .call-controls-bar {
     position: absolute;
-    bottom: 30px;
+    bottom: 26px;
     width: 100%;
     display: flex;
     justify-content: center;
@@ -719,8 +862,8 @@ body {
 }
 
 .call-action-btn {
-    width: 58px;
-    height: 58px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     border: none;
     display: flex;
@@ -758,16 +901,16 @@ body {
 }
 
 .radar-avatar {
-    width: 100px;
-    height: 100px;
+    width: 96px;
+    height: 96px;
     border-radius: 50%;
     background: linear-gradient(135deg, #128c7e 0%, #25d366 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 40px;
+    font-size: 38px;
     font-weight: 800;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.6);
     animation: pulseRing 1.8s infinite;
 }
@@ -779,26 +922,26 @@ body {
 }
 
 .call-user-headline {
-    font-size: 26px;
+    font-size: 24px;
     font-weight: 800;
     margin-bottom: 6px;
     text-align: center;
 }
 
 .call-status-sub {
-    font-size: 15px;
+    font-size: 14px;
     color: #8696a0;
-    margin-bottom: 40px;
+    margin-bottom: 36px;
 }
 
 .overlay-actions-row {
     display: flex;
-    gap: 36px;
+    gap: 32px;
 }
 
 .accept-call-circle {
-    width: 68px;
-    height: 68px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     background: #25d366;
     border: none;
@@ -811,8 +954,8 @@ body {
 }
 
 .reject-call-circle {
-    width: 68px;
-    height: 68px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     background: #ea4335;
     border: none;
@@ -824,7 +967,7 @@ body {
     box-shadow: 0 6px 20px rgba(234, 67, 53, 0.5);
 }
 
-/* ---------------- PROFILE MODAL ---------------- */
+/* ---------------- MODALS (PROFILE, POLICIES, MEDIA VIEWER) ---------------- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -837,18 +980,86 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 999999;
-    padding: 20px;
+    padding: 16px;
 }
 
 .modal-sheet {
     background: white;
-    border-radius: 24px;
-    padding: 28px 24px;
+    border-radius: 20px;
+    padding: 24px 20px;
     width: 100%;
     max-width: 360px;
     text-align: center;
     box-shadow: 0 20px 50px rgba(0,0,0,0.25);
     animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.policy-modal-card {
+    background: white;
+    border-radius: 20px;
+    padding: 20px;
+    width: 100%;
+    max-width: 440px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+}
+
+.policy-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.policy-tabs {
+    display: flex;
+    background: #f0f2f5;
+    border-radius: 10px;
+    padding: 3px;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.policy-tab {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 700;
+    color: #54656f;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.policy-tab.active {
+    background: white;
+    color: #008069;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.policy-content-scroll {
+    flex: 1;
+    overflow-y: auto;
+    text-align: left;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #3b4a54;
+    padding-right: 6px;
+}
+
+.policy-content-scroll h4 {
+    color: #008069;
+    font-size: 13.5px;
+    margin-top: 10px;
+    margin-bottom: 4px;
+}
+
+.policy-content-scroll ul {
+    padding-left: 18px;
+    margin: 4px 0 8px;
 }
 
 @keyframes modalIn {
@@ -857,32 +1068,32 @@ body {
 }
 
 .modal-user-name {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 800;
     color: #111b21;
 }
 
 .modal-user-email {
-    font-size: 13px;
+    font-size: 12.5px;
     color: #667781;
-    margin-top: 4px;
-    margin-bottom: 20px;
+    margin-top: 2px;
+    margin-bottom: 16px;
     word-break: break-all;
 }
 
 .uid-copy-container {
     background: #f0f2f5;
     border: 1.5px dashed #008069;
-    border-radius: 16px;
-    padding: 14px 16px;
+    border-radius: 14px;
+    padding: 12px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 14px;
 }
 
 .uid-digits {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 800;
     color: #008069;
     letter-spacing: 1.5px;
@@ -893,8 +1104,8 @@ body {
     background: #008069;
     color: white;
     border: none;
-    padding: 7px 14px;
-    border-radius: 10px;
+    padding: 6px 12px;
+    border-radius: 8px;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
@@ -902,36 +1113,63 @@ body {
 
 .modal-buttons {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 .secondary-pill {
     flex: 1;
-    padding: 12px;
+    padding: 10px;
     background: #f0f2f5;
     border: none;
-    border-radius: 12px;
+    border-radius: 10px;
     color: #54656f;
+    font-size: 13px;
     font-weight: 700;
     cursor: pointer;
 }
 
 .danger-pill {
     flex: 1;
-    padding: 12px;
+    padding: 10px;
     background: #ffebee;
     color: #c62828;
     border: none;
-    border-radius: 12px;
+    border-radius: 10px;
+    font-size: 13px;
     font-weight: 700;
     cursor: pointer;
 }
 
-/* ---------------- ADMOB CONTAINER ---------------- */
+/* Fullscreen Media Viewer */
+.media-viewer-card {
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+}
+
+.media-viewer-preview {
+    max-width: 100%;
+    max-height: 75vh;
+    border-radius: 12px;
+    object-fit: contain;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+
+.media-viewer-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 14px;
+}
+
+/* ---------------- ADMOB BANNER ---------------- */
 .admob-container {
     background: #ffffff;
     border-top: 1px solid #e9edef;
-    padding: 8px 12px;
+    padding: 7px 12px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -942,7 +1180,7 @@ body {
 .admob-tag {
     background: #fbbc04;
     color: #202124;
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 800;
     padding: 2px 6px;
     border-radius: 4px;
@@ -956,13 +1194,33 @@ body {
 }
 
 .admob-headline {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     color: #202124;
 }
 
 .admob-id-code {
-    font-size: 10px;
+    font-size: 9.5px;
     color: #5f6368;
     font-family: monospace;
+}
+
+/* Toast */
+#toast {
+    position: fixed;
+    bottom: 58px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1f2c34;
+    color: #e9edef;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13.5px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+    z-index: 10000000;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    max-width: 90%;
+    text-align: center;
 }

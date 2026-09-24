@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "build": "echo 'Build complete'"
+    "build": "echo 'Build complete'",
+    "lint": "node -c server.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

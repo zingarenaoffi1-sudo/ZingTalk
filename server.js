@@ -10,7 +10,8 @@ const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
+    maxHttpBufferSize: 5e7 // 50MB for zero-server media file sharing
 });
 
 // Serve static frontend assets
