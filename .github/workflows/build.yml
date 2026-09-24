@@ -20,10 +20,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Node.js
+      - name: Set up Node.js (Node 22 required by Capacitor CLI)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install Dependencies
         run: |
@@ -32,7 +32,9 @@ jobs:
 
       - name: Configure Capacitor & Add Android Platform
         run: |
-          npx cap init ZingTalk com.zingtalk.com --web-dir .
+          if [ ! -f "capacitor.config.json" ]; then
+            npx cap init ZingTalk com.zingtalk.com --web-dir .
+          fi
           if [ ! -d "android" ]; then
             npx cap add android
           fi

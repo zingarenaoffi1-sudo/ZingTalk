@@ -51,8 +51,13 @@ export let currentUser = null;
 export let my10DigitUid = null;
 export let my5DigitUid = null; // Alias for backward compatibility
 export let currentTargetUid = null;
+export let isGroupMode = false;
+export let currentGroup = null;
 let chatHistory = JSON.parse(localStorage.getItem("zingTalkHistory")) || {};
+let myGroups = JSON.parse(localStorage.getItem("zingTalkGroups")) || [];
+let blockedUids = JSON.parse(localStorage.getItem("zingTalkBlockedUids")) || [];
 let unreadCounts = {};
+let groupUnreadCounts = {};
 let myContacts = [];
 let localStream = null;
 let peerConnection = null;
@@ -64,6 +69,9 @@ let callSecondsElapsed = 0;
 let iceCandidatesQueue = [];
 let isRegisterMode = false;
 let adTimerInterval = null;
+let typingTimeout = null;
+let selectedGroupEmoji = "👥";
+let activeReactionTargetMsgId = null;
 
 // Google's Public Free STUN Servers for WebRTC P2P Calling
 const rtcConfig = {
@@ -185,11 +193,12 @@ if (socket) {
 
     socket.on("receive_message", (data) => {
         const sender = data.senderUid;
+        if (blockedUids.includes(sender)) return; // Blocked user filter
         if (!chatHistory[sender]) chatHistory[sender] = [];
         chatHistory[sender].push({ ...data, type: "msg-received" });
         localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
 
-        if (currentTargetUid === sender) {
+        if (!isGroupMode && currentTargetUid === sender) {
             appendMessage(data, "msg-received");
         } else {
             unreadCounts[sender] = (unreadCounts[sender] || 0) + 1;
@@ -197,7 +206,74 @@ if (socket) {
         }
     });
 
+    socket.on("receive_group_message", (data) => {
+        if (data.senderUid === my10DigitUid) return;
+        const gid = data.groupId;
+        saveGroupMessage(gid, { ...data, type: "msg-received" });
+
+        if (isGroupMode && currentGroup && currentGroup.groupId === gid) {
+            appendMessage(data, "msg-received");
+        } else {
+            groupUnreadCounts[gid] = (groupUnreadCounts[gid] || 0) + 1;
+            renderGroups();
+        }
+    });
+
+    socket.on("group_created", (group) => {
+        if (!myGroups.some(g => g.groupId === group.groupId)) {
+            myGroups.push(group);
+            localStorage.setItem("zingTalkGroups", JSON.stringify(myGroups));
+        }
+        renderGroups();
+        openGroupChat(group);
+        showToast(`Group "${group.name}" created! (10-digit ID: ${group.groupId})`);
+    });
+
+    socket.on("group_added", (group) => {
+        if (!myGroups.some(g => g.groupId === group.groupId)) {
+            myGroups.push(group);
+            localStorage.setItem("zingTalkGroups", JSON.stringify(myGroups));
+        }
+        renderGroups();
+        showToast(`You were added to group "${group.name}"!`);
+    });
+
+    socket.on("user_typing", (data) => {
+        const statusEl = document.getElementById("chat-contact-uid");
+        if (!statusEl) return;
+        if (isGroupMode && currentGroup && currentGroup.groupId === data.targetId) {
+            statusEl.innerText = `✍️ ${data.senderName} is typing...`;
+            statusEl.style.color = "#25d366";
+        } else if (!isGroupMode && currentTargetUid === data.senderUid) {
+            statusEl.innerText = `✍️ typing...`;
+            statusEl.style.color = "#25d366";
+        }
+    });
+
+    socket.on("user_stop_typing", () => {
+        const statusEl = document.getElementById("chat-contact-uid");
+        if (!statusEl) return;
+        statusEl.style.color = "";
+        if (isGroupMode && currentGroup) {
+            statusEl.innerText = `${currentGroup.members ? currentGroup.members.length : 1} members • ID: ${currentGroup.groupId}`;
+        } else if (!isGroupMode && currentTargetUid) {
+            statusEl.innerText = "UID: " + currentTargetUid;
+        }
+    });
+
+    socket.on("receive_reaction", (data) => {
+        applyReactionToMessage(data.msgId, data.emoji, data.userUid);
+    });
+
+    socket.on("report_ack", (data) => {
+        showToast(data.message || "Report filed with compliance team.");
+    });
+
     socket.on("incoming_call", (data) => {
+        if (blockedUids.includes(data.callerUid)) {
+            socket.emit("call_response", { targetUid: data.callerUid, status: "rejected" });
+            return;
+        }
         activeCallTarget = data.callerUid;
         currentCallType = data.type || "video";
 
@@ -308,7 +384,7 @@ function renderContacts(contacts) {
         div.innerHTML = `
             <div class="avatar small">${(contact.name || "U").charAt(0).toUpperCase()}</div>
             <div class="contact-info">
-                <span class="contact-name">${contact.name}</span>
+                <span class="contact-name">${escapeHtml(contact.name)}</span>
                 <span class="contact-uid-label">UID: ${contact.uid}</span>
             </div>
             ${badge}
@@ -318,12 +394,81 @@ function renderContacts(contacts) {
     });
 }
 
+function renderGroups() {
+    const list = document.getElementById("groups-list");
+    if (!list) return;
+    list.innerHTML = "";
+
+    if (myGroups.length === 0) {
+        list.innerHTML = `
+            <div style="padding: 44px 24px; text-align: center; color: #8696a0;">
+                <div style="font-size: 42px; margin-bottom: 12px;">👥</div>
+                <p style="font-size: 16px; font-weight: 700; color: #111b21; margin-bottom: 6px;">No groups yet</p>
+                <p style="font-size: 13px; line-height: 1.4;">Click <strong>+ New Group</strong> above to create a group chat with friends using 10-digit UIDs!</p>
+            </div>
+        `;
+        return;
+    }
+
+    myGroups.forEach(group => {
+        const unread = groupUnreadCounts[group.groupId] || 0;
+        const badge = unread > 0 ? `<span class="unread-pill">${unread}</span>` : "";
+        const div = document.createElement("div");
+        div.className = "contact-row";
+        div.innerHTML = `
+            <div class="avatar small" style="font-size: 20px;">${group.icon || '👥'}</div>
+            <div class="contact-info">
+                <span class="contact-name">${escapeHtml(group.name)}</span>
+                <span class="contact-uid-label">${group.members ? group.members.length : 1} members • ID: ${group.groupId}</span>
+            </div>
+            ${badge}
+        `;
+        div.onclick = () => openGroupChat(group);
+        list.appendChild(div);
+    });
+}
+
+function openGroupChat(group) {
+    isGroupMode = true;
+    currentGroup = group;
+    currentTargetUid = null;
+    groupUnreadCounts[group.groupId] = 0;
+    renderGroups();
+
+    document.getElementById("main-screen")?.classList.add("hidden");
+    document.getElementById("chat-screen")?.classList.remove("hidden");
+
+    if (document.getElementById("chat-contact-name")) document.getElementById("chat-contact-name").innerText = group.name;
+    if (document.getElementById("chat-contact-uid")) document.getElementById("chat-contact-uid").innerText = `${group.members ? group.members.length : 1} members • ID: ${group.groupId}`;
+    if (document.getElementById("chat-avatar")) document.getElementById("chat-avatar").innerText = group.icon || "👥";
+    document.getElementById("opt-group-info")?.classList.remove("hidden");
+
+    const chatMessagesArea = document.getElementById("messages-area");
+    if (chatMessagesArea) {
+        chatMessagesArea.innerHTML = `<div class="date-divider">GROUP CHAT (${escapeHtml(group.name)})</div>`;
+        const history = JSON.parse(localStorage.getItem("zingTalkGroupHistory_" + group.groupId)) || [];
+        history.forEach(msg => appendMessage(msg, msg.type));
+    }
+}
+
+function saveGroupMessage(groupId, msg) {
+    const key = "zingTalkGroupHistory_" + groupId;
+    const history = JSON.parse(localStorage.getItem(key)) || [];
+    history.push(msg);
+    try {
+        localStorage.setItem(key, JSON.stringify(history));
+    } catch (_) {}
+}
+
 function openChat(contact) {
+    isGroupMode = false;
+    currentGroup = null;
     currentTargetUid = contact.uid;
     unreadCounts[contact.uid] = 0;
     renderContacts(myContacts);
     document.getElementById("main-screen")?.classList.add("hidden");
     document.getElementById("chat-screen")?.classList.remove("hidden");
+    document.getElementById("opt-group-info")?.classList.add("hidden");
 
     if (document.getElementById("chat-contact-name")) document.getElementById("chat-contact-name").innerText = contact.name;
     if (document.getElementById("chat-contact-uid")) document.getElementById("chat-contact-uid").innerText = "UID: " + contact.uid;
@@ -341,14 +486,34 @@ function openChat(contact) {
 function sendMessageLogic() {
     const messageInput = document.getElementById("message-input");
     const text = messageInput?.value.trim();
-    if (text && currentTargetUid && socket) {
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!text || !socket) return;
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+
+    if (isGroupMode && currentGroup) {
         const msgData = {
+            id: msgId,
+            groupId: currentGroup.groupId,
+            senderUid: my10DigitUid,
+            senderName: (currentUser && currentUser.displayName) ? currentUser.displayName : "User",
+            text: text,
+            timestamp: timeStr,
+            reactions: {}
+        };
+        socket.emit("send_group_message", msgData);
+        appendMessage(msgData, "msg-sent");
+        saveGroupMessage(currentGroup.groupId, { ...msgData, type: "msg-sent" });
+        messageInput.value = "";
+    } else if (currentTargetUid) {
+        const msgData = {
+            id: msgId,
             senderUid: my10DigitUid,
             receiverUid: currentTargetUid,
             text: text,
-            timestamp: timeStr
+            timestamp: timeStr,
+            reactions: {}
         };
         socket.emit("send_message", msgData);
         appendMessage(msgData, "msg-sent");
@@ -368,7 +533,13 @@ function appendMessage(data, type) {
     if (!chatMessagesArea) return;
     const div = document.createElement("div");
     div.className = `msg-bubble ${type}`;
-    
+    div.dataset.msgId = data.id || ("msg_" + Date.now());
+
+    let groupSenderHtml = "";
+    if (isGroupMode && type !== 'msg-sent' && data.senderName) {
+        groupSenderHtml = `<span class="group-msg-sender">${escapeHtml(data.senderName)}</span>`;
+    }
+
     let mediaHtml = "";
     if (data.media) {
         if (data.media.type === "image") {
@@ -389,13 +560,23 @@ function appendMessage(data, type) {
     const captionHtml = data.text ? `<div class="${data.media ? 'media-caption' : ''}">${escapeHtml(data.text)}</div>` : '';
     const checkmark = type === 'msg-sent' ? `<span style="color:#53bdeb; margin-left: 2px;">✓✓</span>` : '';
 
+    let reactionHtml = "";
+    if (data.reactions && Object.keys(data.reactions).length > 0) {
+        const counts = {};
+        Object.values(data.reactions).forEach(em => counts[em] = (counts[em] || 0) + 1);
+        const badges = Object.entries(counts).map(([em, cnt]) => `${em} ${cnt > 1 ? cnt : ''}`).join(" ");
+        reactionHtml = `<div class="reaction-badge">${badges}</div>`;
+    }
+
     div.innerHTML = `
+        ${groupSenderHtml}
         ${mediaHtml}
         ${captionHtml}
         <span class="msg-meta">
             ${data.timestamp || ''}
             ${checkmark}
         </span>
+        ${reactionHtml}
     `;
 
     // Click on shared image to open full-screen viewer
@@ -406,8 +587,37 @@ function appendMessage(data, type) {
         }
     }
 
+    // Reaction trigger on message contextmenu or long-press
+    div.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showReactionPopover(div, data.id || div.dataset.msgId);
+    });
+
     chatMessagesArea.appendChild(div);
     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+}
+
+function showReactionPopover(msgElement, msgId) {
+    activeReactionTargetMsgId = msgId;
+    const popover = document.getElementById("reaction-popover");
+    if (!popover) return;
+    const rect = msgElement.getBoundingClientRect();
+    popover.style.top = `${Math.max(10, rect.top - 42)}px`;
+    popover.style.left = `${Math.max(10, rect.left)}px`;
+    popover.classList.remove("hidden");
+}
+
+function applyReactionToMessage(msgId, emoji) {
+    const msgEl = document.querySelector(`.msg-bubble[data-msg-id="${msgId}"]`);
+    if (msgEl) {
+        let badge = msgEl.querySelector(".reaction-badge");
+        if (!badge) {
+            badge = document.createElement("div");
+            badge.className = "reaction-badge";
+            msgEl.appendChild(badge);
+        }
+        badge.innerText = `${emoji} 1`;
+    }
 }
 
 function escapeHtml(text) {
@@ -454,7 +664,7 @@ if (mediaFileInput) {
     mediaFileInput.addEventListener("change", () => {
         const file = mediaFileInput.files && mediaFileInput.files[0];
         if (!file) return;
-        if (!currentTargetUid) {
+        if (!currentTargetUid && !isGroupMode) {
             showToast("Please open a conversation to share media");
             return;
         }
@@ -476,30 +686,55 @@ if (mediaFileInput) {
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             const messageInput = document.getElementById("message-input");
             const caption = messageInput ? messageInput.value.trim() : "";
+            const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
 
-            const msgData = {
-                senderUid: my10DigitUid,
-                receiverUid: currentTargetUid,
-                text: caption,
-                media: {
-                    type: mediaType,
-                    dataUrl: reader.result,
-                    name: file.name,
-                    size: file.size
-                },
-                timestamp: timeStr
-            };
-
-            if (socket) {
-                socket.emit("send_message", msgData);
-            }
-            appendMessage(msgData, "msg-sent");
-            if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
-            chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
-            try {
-                localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
-            } catch (err) {
-                console.warn("Storage note:", err);
+            if (isGroupMode && currentGroup) {
+                const msgData = {
+                    id: msgId,
+                    groupId: currentGroup.groupId,
+                    senderUid: my10DigitUid,
+                    senderName: (currentUser && currentUser.displayName) ? currentUser.displayName : "User",
+                    text: caption,
+                    media: {
+                        type: mediaType,
+                        dataUrl: reader.result,
+                        name: file.name,
+                        size: file.size
+                    },
+                    timestamp: timeStr,
+                    reactions: {}
+                };
+                if (socket) {
+                    socket.emit("send_group_message", msgData);
+                }
+                appendMessage(msgData, "msg-sent");
+                saveGroupMessage(currentGroup.groupId, { ...msgData, type: "msg-sent" });
+            } else if (currentTargetUid) {
+                const msgData = {
+                    id: msgId,
+                    senderUid: my10DigitUid,
+                    receiverUid: currentTargetUid,
+                    text: caption,
+                    media: {
+                        type: mediaType,
+                        dataUrl: reader.result,
+                        name: file.name,
+                        size: file.size
+                    },
+                    timestamp: timeStr,
+                    reactions: {}
+                };
+                if (socket) {
+                    socket.emit("send_message", msgData);
+                }
+                appendMessage(msgData, "msg-sent");
+                if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
+                chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
+                try {
+                    localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
+                } catch (err) {
+                    console.warn("Storage note:", err);
+                }
             }
 
             if (messageInput) messageInput.value = "";
@@ -526,7 +761,7 @@ async function toggleVoiceRecording() {
         return;
     }
 
-    if (!currentTargetUid) {
+    if (!currentTargetUid && !isGroupMode) {
         showToast("Please open a chat to record a voice note");
         return;
     }
@@ -548,28 +783,54 @@ async function toggleVoiceRecording() {
             reader.onloadend = () => {
                 const now = new Date();
                 const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                const msgData = {
-                    senderUid: my10DigitUid,
-                    receiverUid: currentTargetUid,
-                    text: "🎙️ Voice Note",
-                    media: {
-                        type: "audio",
-                        dataUrl: reader.result,
-                        name: "voice_note_" + Date.now() + ".webm",
-                        size: audioBlob.size
-                    },
-                    timestamp: timeStr
-                };
+                const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
 
-                if (socket) {
-                    socket.emit("send_message", msgData);
+                if (isGroupMode && currentGroup) {
+                    const msgData = {
+                        id: msgId,
+                        groupId: currentGroup.groupId,
+                        senderUid: my10DigitUid,
+                        senderName: (currentUser && currentUser.displayName) ? currentUser.displayName : "User",
+                        text: "🎙️ Voice Note",
+                        media: {
+                            type: "audio",
+                            dataUrl: reader.result,
+                            name: "voice_note_" + Date.now() + ".webm",
+                            size: audioBlob.size
+                        },
+                        timestamp: timeStr,
+                        reactions: {}
+                    };
+                    if (socket) {
+                        socket.emit("send_group_message", msgData);
+                    }
+                    appendMessage(msgData, "msg-sent");
+                    saveGroupMessage(currentGroup.groupId, { ...msgData, type: "msg-sent" });
+                } else if (currentTargetUid) {
+                    const msgData = {
+                        id: msgId,
+                        senderUid: my10DigitUid,
+                        receiverUid: currentTargetUid,
+                        text: "🎙️ Voice Note",
+                        media: {
+                            type: "audio",
+                            dataUrl: reader.result,
+                            name: "voice_note_" + Date.now() + ".webm",
+                            size: audioBlob.size
+                        },
+                        timestamp: timeStr,
+                        reactions: {}
+                    };
+                    if (socket) {
+                        socket.emit("send_message", msgData);
+                    }
+                    appendMessage(msgData, "msg-sent");
+                    if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
+                    chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
+                    try {
+                        localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
+                    } catch (_) {}
                 }
-                appendMessage(msgData, "msg-sent");
-                if (!chatHistory[currentTargetUid]) chatHistory[currentTargetUid] = [];
-                chatHistory[currentTargetUid].push({ ...msgData, type: "msg-sent" });
-                try {
-                    localStorage.setItem("zingTalkHistory", JSON.stringify(chatHistory));
-                } catch (_) {}
 
                 showToast("Voice note sent (Zero server storage)");
             };
@@ -885,9 +1146,210 @@ document.addEventListener("click", async (e) => {
         }
     }
 
+    // Typing Indicator listener on chat input
+    const msgInp = document.getElementById("message-input");
+    if (msgInp) {
+        msgInp.addEventListener("input", () => {
+            if (!socket) return;
+            const targetId = isGroupMode ? (currentGroup && currentGroup.groupId) : currentTargetUid;
+            if (!targetId) return;
+
+            socket.emit("typing", {
+                targetId,
+                isGroup: isGroupMode,
+                senderUid: my10DigitUid,
+                senderName: (currentUser && currentUser.displayName) ? currentUser.displayName : "User"
+            });
+
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                socket.emit("stop_typing", {
+                    targetId,
+                    isGroup: isGroupMode,
+                    senderUid: my10DigitUid
+                });
+            }, 1500);
+        });
+    }
+
+    // Close options / reactions popover when clicking outside
+    if (!e.target.closest("#chat-options-btn") && !e.target.closest("#chat-options-popover")) {
+        document.getElementById("chat-options-popover")?.classList.add("hidden");
+    }
+    if (!e.target.closest("#reaction-popover") && !e.target.closest(".msg-bubble")) {
+        document.getElementById("reaction-popover")?.classList.add("hidden");
+    }
+
+    // Dashboard Segment Tabs (Direct vs Groups)
+    if (e.target.id === "tab-direct-chats" || e.target.closest("#tab-direct-chats")) {
+        document.getElementById("tab-direct-chats")?.classList.add("active");
+        document.getElementById("tab-groups")?.classList.remove("active");
+        document.getElementById("pane-direct-chats")?.classList.remove("hidden");
+        document.getElementById("pane-groups")?.classList.add("hidden");
+    }
+    if (e.target.id === "tab-groups" || e.target.closest("#tab-groups")) {
+        document.getElementById("tab-groups")?.classList.add("active");
+        document.getElementById("tab-direct-chats")?.classList.remove("active");
+        document.getElementById("pane-groups")?.classList.remove("hidden");
+        document.getElementById("pane-direct-chats")?.classList.add("hidden");
+        renderGroups();
+    }
+
+    // Open Create Group Modal
+    if (e.target.id === "open-create-group-btn" || e.target.closest("#open-create-group-btn")) {
+        document.getElementById("create-group-modal")?.classList.remove("hidden");
+    }
+
+    // Close Create Group Modal
+    if (e.target.id === "close-group-modal-btn") {
+        document.getElementById("create-group-modal")?.classList.add("hidden");
+    }
+
+    // Select Group Emoji Icon
+    if (e.target.classList.contains("emoji-opt")) {
+        document.querySelectorAll(".emoji-opt").forEach(opt => opt.classList.remove("active"));
+        e.target.classList.add("active");
+        selectedGroupEmoji = e.target.dataset.emoji || "👥";
+    }
+
+    // Submit Create Group
+    if (e.target.id === "submit-create-group-btn") {
+        const name = document.getElementById("group-name-input")?.value.trim();
+        const membersRaw = document.getElementById("group-members-input")?.value.trim() || "";
+        if (!name) return showToast("Please enter a group name");
+
+        const memberUids = membersRaw.split(/[, ]+/).filter(id => id.length >= 5 && id !== my10DigitUid);
+        if (socket) {
+            socket.emit("create_group", {
+                creatorUid: my10DigitUid,
+                name: name,
+                icon: selectedGroupEmoji,
+                members: memberUids
+            });
+        }
+        document.getElementById("create-group-modal")?.classList.add("hidden");
+        if (document.getElementById("group-name-input")) document.getElementById("group-name-input").value = "";
+        if (document.getElementById("group-members-input")) document.getElementById("group-members-input").value = "";
+    }
+
+    // Chat Header Options Toggle
+    if (e.target.id === "chat-options-btn" || e.target.closest("#chat-options-btn")) {
+        document.getElementById("chat-options-popover")?.classList.toggle("hidden");
+    }
+
+    // Click on Chat Header to View Group Info
+    if ((e.target.id === "chat-header-clickable" || e.target.closest("#chat-header-clickable")) && isGroupMode && currentGroup) {
+        document.getElementById("opt-group-info")?.click();
+    }
+
+    // Open Group Info Modal
+    if (e.target.id === "opt-group-info" || e.target.closest("#opt-group-info")) {
+        document.getElementById("chat-options-popover")?.classList.add("hidden");
+        if (!currentGroup) return;
+
+        const infoIcon = document.getElementById("group-info-icon");
+        const infoName = document.getElementById("group-info-name");
+        const infoMeta = document.getElementById("group-info-meta");
+        const infoId = document.getElementById("group-info-id");
+        const membersList = document.getElementById("group-info-members-list");
+
+        if (infoIcon) infoIcon.innerText = currentGroup.icon || "👥";
+        if (infoName) infoName.innerText = currentGroup.name;
+        if (infoMeta) infoMeta.innerText = `${currentGroup.members ? currentGroup.members.length : 1} Total Members`;
+        if (infoId) infoId.innerText = currentGroup.groupId;
+
+        if (membersList) {
+            membersList.innerHTML = "";
+            (currentGroup.members || [my10DigitUid]).forEach(uid => {
+                const row = document.createElement("div");
+                row.style.padding = "4px 0";
+                row.style.borderBottom = "1px solid #f0f2f5";
+                const isMe = uid === my10DigitUid ? " (You)" : "";
+                row.innerText = `👤 Member UID: ${uid}${isMe}`;
+                membersList.appendChild(row);
+            });
+        }
+
+        document.getElementById("group-info-modal")?.classList.remove("hidden");
+    }
+
+    // Close Group Info Modal
+    if (e.target.id === "close-group-info-btn") {
+        document.getElementById("group-info-modal")?.classList.add("hidden");
+    }
+
+    // Copy Group ID Button
+    if (e.target.id === "copy-group-id-btn") {
+        if (currentGroup) {
+            navigator.clipboard.writeText(currentGroup.groupId).then(() => {
+                showToast("Group ID copied: " + currentGroup.groupId);
+            }).catch(() => {
+                showToast("Group ID: " + currentGroup.groupId);
+            });
+        }
+    }
+
+    // Open Report Modal
+    if (e.target.id === "opt-report-user" || e.target.closest("#opt-report-user")) {
+        document.getElementById("chat-options-popover")?.classList.add("hidden");
+        document.getElementById("report-modal")?.classList.remove("hidden");
+    }
+
+    // Close Report Modal
+    if (e.target.id === "close-report-modal-btn") {
+        document.getElementById("report-modal")?.classList.add("hidden");
+    }
+
+    // Submit Report & Block Target
+    if (e.target.id === "submit-report-btn") {
+        const reason = document.getElementById("report-reason-select")?.value || "inappropriate_media";
+        const targetId = isGroupMode ? (currentGroup && currentGroup.groupId) : currentTargetUid;
+
+        if (targetId) {
+            if (!blockedUids.includes(targetId)) {
+                blockedUids.push(targetId);
+                localStorage.setItem("zingTalkBlockedUids", JSON.stringify(blockedUids));
+            }
+            if (socket) {
+                socket.emit("report_content", {
+                    reporterUid: my10DigitUid,
+                    targetId: targetId,
+                    reason: reason
+                });
+            }
+            showToast("Report submitted to compliance (zingarenaoffi1@gmail.com). Target blocked.");
+        }
+
+        document.getElementById("report-modal")?.classList.add("hidden");
+        document.getElementById("chat-screen")?.classList.add("hidden");
+        document.getElementById("main-screen")?.classList.remove("hidden");
+    }
+
+    // Click on Reaction Emoji in Popover
+    if (e.target.classList.contains("reaction-btn")) {
+        const emoji = e.target.dataset.emoji;
+        if (emoji && activeReactionTargetMsgId) {
+            const targetId = isGroupMode ? (currentGroup && currentGroup.groupId) : currentTargetUid;
+            if (socket) {
+                socket.emit("send_reaction", {
+                    targetId,
+                    isGroup: isGroupMode,
+                    msgId: activeReactionTargetMsgId,
+                    emoji,
+                    userUid: my10DigitUid
+                });
+            }
+            applyReactionToMessage(activeReactionTargetMsgId, emoji);
+            document.getElementById("reaction-popover")?.classList.add("hidden");
+            activeReactionTargetMsgId = null;
+        }
+    }
+
     // Back button in chat
     if (e.target.id === "back-btn" || e.target.closest("#back-btn")) {
         currentTargetUid = null;
+        currentGroup = null;
+        isGroupMode = false;
         document.getElementById("chat-screen")?.classList.add("hidden");
         document.getElementById("main-screen")?.classList.remove("hidden");
     }

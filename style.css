@@ -1177,6 +1177,155 @@ body {
     flex-shrink: 0;
 }
 
+/* Call Top Sticky AdMob Banner */
+.call-top-admob {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000003;
+    display: flex;
+    justify-content: center;
+}
+
+/* Dashboard Segment Tabs (Direct vs Groups) */
+.dash-segment-tabs {
+    display: flex;
+    background: #f0f2f5;
+    border-bottom: 1px solid #e9edef;
+    padding: 4px 8px;
+    gap: 6px;
+}
+
+.dash-tab {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #54656f;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.dash-tab.active {
+    background: white;
+    color: #008069;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.dash-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Group Message Bubble Styling */
+.group-msg-sender {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #008069;
+    margin-bottom: 2px;
+}
+
+/* Emoji Option Picker */
+.emoji-opt {
+    padding: 6px;
+    border-radius: 8px;
+    border: 1.5px solid transparent;
+    transition: transform 0.15s;
+}
+
+.emoji-opt.active, .emoji-opt:hover {
+    border-color: #008069;
+    background: #e8f5e9;
+    transform: scale(1.15);
+}
+
+/* Message Reaction Badge */
+.reaction-badge {
+    display: inline-flex;
+    align-items: center;
+    background: white;
+    border: 1px solid #e9edef;
+    border-radius: 12px;
+    padding: 1px 6px;
+    font-size: 11.5px;
+    margin-top: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    cursor: pointer;
+}
+
+/* Chat Header Options Popover */
+.chat-options-popover {
+    position: absolute;
+    top: 56px;
+    right: 12px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    border: 1px solid #e9edef;
+    padding: 6px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+    animation: popUp 0.15s ease-out;
+}
+
+.chat-opt-item {
+    padding: 8px 12px;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111b21;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+}
+
+.chat-opt-item:hover {
+    background: #f0f2f5;
+}
+
+/* Message Reaction Popover */
+.reaction-popover {
+    position: absolute;
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+    border: 1px solid #e9edef;
+    padding: 4px 8px;
+    display: flex;
+    gap: 8px;
+    z-index: 1000;
+    animation: popUp 0.12s ease-out;
+}
+
+.reaction-btn {
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.reaction-btn:hover {
+    transform: scale(1.3);
+}
+
 .admob-tag {
     background: #fbbc04;
     color: #202124;

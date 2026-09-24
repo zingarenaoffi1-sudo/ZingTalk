@@ -123,20 +123,47 @@
                 </div>
             </header>
 
-            <!-- Search 10-Digit UID / Add Contact Section -->
-            <div class="search-bar-card">
-                <div class="search-input-row">
-                    <input type="text" id="search-uid-input" maxlength="10" class="uid-search-input" placeholder="Enter 10-digit UID (e.g. 1234567890)">
-                    <input type="text" id="save-name-input" class="uid-search-input" placeholder="Custom Name (e.g. Bro)">
-                </div>
-                <button id="save-contact-btn" class="add-contact-btn">
-                    <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                    <span>Save Contact</span>
+            <!-- Dashboard Segment Tabs (Direct Chats vs Groups) -->
+            <div class="dash-segment-tabs">
+                <button type="button" id="tab-direct-chats" class="dash-tab active">
+                    <span>💬 Direct Chats</span>
+                </button>
+                <button type="button" id="tab-groups" class="dash-tab">
+                    <span>👥 Groups</span>
                 </button>
             </div>
 
-            <!-- Contact Feed -->
-            <div id="contacts-list" class="contacts-feed"></div>
+            <!-- Tab Pane 1: Direct Chats & Add Contact -->
+            <div id="pane-direct-chats" class="dash-pane">
+                <!-- Search 10-Digit UID / Add Contact Section -->
+                <div class="search-bar-card">
+                    <div class="search-input-row">
+                        <input type="text" id="search-uid-input" maxlength="10" class="uid-search-input" placeholder="Enter 10-digit UID (e.g. 1234567890)">
+                        <input type="text" id="save-name-input" class="uid-search-input" placeholder="Custom Name (e.g. Bro)">
+                    </div>
+                    <button id="save-contact-btn" class="add-contact-btn">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <span>Save Contact</span>
+                    </button>
+                </div>
+
+                <!-- Contact Feed -->
+                <div id="contacts-list" class="contacts-feed"></div>
+            </div>
+
+            <!-- Tab Pane 2: Groups -->
+            <div id="pane-groups" class="dash-pane hidden">
+                <div class="search-bar-card" style="flex-direction: row; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 13.5px; font-weight: 700; color: #111b21;">Group Conversations</div>
+                        <div style="font-size: 11px; color: #667781;">Zero-server group rooms & media</div>
+                    </div>
+                    <button id="open-create-group-btn" class="add-contact-btn" style="padding: 7px 12px; font-size: 12px;">
+                        <span>+ New Group</span>
+                    </button>
+                </div>
+                <div id="groups-list" class="contacts-feed"></div>
+            </div>
 
             <!-- AdMob Sticky Test Banner -->
             <div class="admob-container">
@@ -155,7 +182,7 @@
                 <button id="back-btn" class="icon-btn" title="Back">
                     <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
                 </button>
-                <div class="chat-header-center">
+                <div class="chat-header-center" id="chat-header-clickable">
                     <div id="chat-avatar" class="avatar small">U</div>
                     <div class="chat-header-info">
                         <span id="chat-contact-name" class="chat-header-name">Contact</span>
@@ -170,6 +197,9 @@
                     <button id="video-call-btn" class="call-pill-btn" title="Start Video Call">
                         <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                         <span>Video</span>
+                    </button>
+                    <button id="chat-options-btn" class="icon-btn" style="width: 34px; height: 34px;" title="Options & Report">
+                        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                     </button>
                 </div>
             </header>
@@ -215,6 +245,17 @@
 
         <!-- 4. ACTIVE WEBRTC VIDEO / AUDIO CALL SCREEN -->
         <div id="full-call-screen" class="hidden">
+            <!-- Top Sticky AdMob Banner Ad (Highest position on call screen) -->
+            <div id="call-top-admob" class="call-top-admob">
+                <div class="admob-container" style="background: rgba(255, 255, 255, 0.96); backdrop-filter: blur(8px); width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,0.4); border-radius: 0 0 14px 14px; padding: 6px 14px; border: none;">
+                    <span class="admob-tag">Ad</span>
+                    <div class="admob-details">
+                        <span class="admob-headline">Google AdMob Call Top Banner (320x50)</span>
+                        <span class="admob-id-code">ca-app-pub-3940256099942544/6300978111</span>
+                    </div>
+                </div>
+            </div>
+
             <video id="remote-video" autoplay playsinline></video>
             <video id="local-video" autoplay playsinline muted></video>
 
@@ -225,7 +266,8 @@
                 <p style="font-size: 13.5px; color: #25d366; font-weight: 700;">Peer-to-Peer Encrypted Voice</p>
             </div>
 
-            <div class="call-top-bar">
+            <!-- Call timer positioned below top banner ad -->
+            <div class="call-top-bar" style="top: 72px;">
                 <span class="call-timer-badge" id="call-timer">Connected • HD Call</span>
             </div>
 
@@ -368,6 +410,112 @@
                     <button type="button" id="close-media-viewer-btn" class="secondary-pill" style="padding: 10px 20px; font-size: 13px;">Close</button>
                 </div>
             </div>
+        </div>
+
+        <!-- 9. CREATE GROUP MODAL -->
+        <div id="create-group-modal" class="modal-overlay hidden">
+            <div class="modal-sheet">
+                <div style="font-size: 36px; margin-bottom: 8px;">👥</div>
+                <h3 style="font-size: 18px; font-weight: 800; color: #111b21; margin-bottom: 4px;">Create New Group</h3>
+                <p style="font-size: 12px; color: #667781; margin-bottom: 16px;">Zero server load • Direct peer-streamed group room</p>
+
+                <div class="input-wrap">
+                    <span class="input-icon">🏷️</span>
+                    <input type="text" id="group-name-input" class="form-input" placeholder="Group Subject / Name">
+                </div>
+
+                <div class="input-wrap">
+                    <span class="input-icon">👥</span>
+                    <input type="text" id="group-members-input" class="form-input" placeholder="Member 10-digit UIDs (comma separated)">
+                </div>
+
+                <div style="margin-bottom: 14px; text-align: left;">
+                    <label style="font-size: 11px; font-weight: 700; color: #54656f;">CHOOSE GROUP ICON</label>
+                    <div id="group-emoji-picker" style="display: flex; gap: 8px; margin-top: 6px; font-size: 22px; cursor: pointer;">
+                        <span class="emoji-opt active" data-emoji="👥">👥</span>
+                        <span class="emoji-opt" data-emoji="🚀">🚀</span>
+                        <span class="emoji-opt" data-emoji="🎮">🎮</span>
+                        <span class="emoji-opt" data-emoji="⚽">⚽</span>
+                        <span class="emoji-opt" data-emoji="🍕">🍕</span>
+                        <span class="emoji-opt" data-emoji="🔥">🔥</span>
+                    </div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" id="close-group-modal-btn" class="secondary-pill">Cancel</button>
+                    <button type="button" id="submit-create-group-btn" class="primary-btn" style="flex: 1; padding: 10px;">Create Group</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 10. GROUP INFO MODAL -->
+        <div id="group-info-modal" class="modal-overlay hidden">
+            <div class="modal-sheet">
+                <div id="group-info-icon" class="avatar large">👥</div>
+                <h3 id="group-info-name" class="modal-user-name">Group Name</h3>
+                <p id="group-info-meta" class="modal-user-email">X Members</p>
+
+                <p style="font-size: 11px; font-weight: 700; color: #54656f; margin-bottom: 4px;">GROUP 10-DIGIT ID (SHARE WITH FRIENDS)</p>
+                <div class="uid-copy-container" style="margin-bottom: 12px;">
+                    <span id="group-info-id" class="uid-digits">----------</span>
+                    <button type="button" id="copy-group-id-btn" class="copy-pill-btn">Copy</button>
+                </div>
+
+                <div style="text-align: left; margin-bottom: 14px;">
+                    <div style="font-size: 11px; font-weight: 700; color: #54656f; margin-bottom: 6px;">GROUP MEMBERS</div>
+                    <div id="group-info-members-list" style="max-height: 120px; overflow-y: auto; font-size: 12px; color: #111b21;"></div>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="button" id="close-group-info-btn" class="secondary-pill">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 11. REPORT & SAFETY COMPLIANCE MODAL -->
+        <div id="report-modal" class="modal-overlay hidden">
+            <div class="modal-sheet">
+                <div style="font-size: 36px; margin-bottom: 8px;">🛡️</div>
+                <h3 style="font-size: 18px; font-weight: 800; color: #c62828; margin-bottom: 4px;">Report Content / User</h3>
+                <p style="font-size: 12px; color: #667781; margin-bottom: 14px;">Help keep ZingTalk safe and compliant</p>
+
+                <div style="text-align: left; margin-bottom: 14px;">
+                    <label style="font-size: 11px; font-weight: 700; color: #54656f;">SELECT REASON</label>
+                    <select id="report-reason-select" class="form-input" style="width: 100%; margin-top: 4px; padding: 8px 10px;">
+                        <option value="inappropriate_media">Inappropriate Photo / Video / Media</option>
+                        <option value="harassment">Harassment or Bullying</option>
+                        <option value="spam">Spam or Unwanted Messages</option>
+                        <option value="illegal">Unlawful or Abusive Activity</option>
+                    </select>
+                </div>
+
+                <p style="font-size: 11px; color: #8696a0; text-align: left; margin-bottom: 16px;">Reports are reviewed by our safety compliance team at <code>zingarenaoffi1@gmail.com</code>. The offending UID will also be blocked on your device.</p>
+
+                <div class="modal-buttons">
+                    <button type="button" id="close-report-modal-btn" class="secondary-pill">Cancel</button>
+                    <button type="button" id="submit-report-btn" class="danger-pill" style="flex: 1;">Report & Block</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Header Options Popover -->
+        <div id="chat-options-popover" class="chat-options-popover hidden">
+            <button type="button" id="opt-group-info" class="chat-opt-item hidden">
+                <span>ℹ️ Group Details</span>
+            </button>
+            <button type="button" id="opt-report-user" class="chat-opt-item" style="color: #ea4335;">
+                <span>🛡️ Report & Block</span>
+            </button>
+        </div>
+
+        <!-- Message Reactions Popover -->
+        <div id="reaction-popover" class="reaction-popover hidden">
+            <span class="reaction-btn" data-emoji="👍">👍</span>
+            <span class="reaction-btn" data-emoji="❤️">❤️</span>
+            <span class="reaction-btn" data-emoji="😂">😂</span>
+            <span class="reaction-btn" data-emoji="😮">😮</span>
+            <span class="reaction-btn" data-emoji="😢">😢</span>
+            <span class="reaction-btn" data-emoji="🙏">🙏</span>
         </div>
 
         <!-- Toast Feedback -->

@@ -107,6 +107,9 @@ function generate10DigitUid() {
 
 const connectedUsers = new Map();
 
+// In-Memory Groups Registry (Zero disk/Firebase storage load)
+const inMemoryGroups = new Map();
+
 io.on('connection', (socket) => {
     socket.on('login_user', async (data) => {
         try {
@@ -134,6 +137,13 @@ io.on('connection', (socket) => {
 
             connectedUsers.set(uid, socket.id);
             socket.join(uid);
+
+            // Auto-join existing in-memory group rooms
+            for (const [groupId, group] of inMemoryGroups.entries()) {
+                if (group.members && group.members.includes(uid)) {
+                    socket.join(groupId);
+                }
+            }
             
             const userDoc = await usersRef.doc(uid).get();
             socket.emit('user_data', userDoc.data());
@@ -170,6 +180,78 @@ io.on('connection', (socket) => {
 
     socket.on('send_message', (data) => {
         io.to(data.receiverUid).emit('receive_message', data);
+    });
+
+    // Group Management (Zero disk/Firebase load)
+    socket.on('create_group', (data) => {
+        try {
+            const groupId = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+            const newGroup = {
+                groupId,
+                name: data.name || "ZingTalk Group",
+                icon: data.icon || "👥",
+                creatorUid: data.creatorUid,
+                members: Array.from(new Set([data.creatorUid, ...(data.members || [])])),
+                createdAt: Date.now()
+            };
+            inMemoryGroups.set(groupId, newGroup);
+            socket.join(groupId);
+
+            // Join connected members to group room
+            newGroup.members.forEach(memberUid => {
+                const targetSocketId = connectedUsers.get(memberUid);
+                if (targetSocketId) {
+                    const targetSocket = io.sockets.sockets.get(targetSocketId);
+                    if (targetSocket) targetSocket.join(groupId);
+                    io.to(memberUid).emit('group_added', newGroup);
+                }
+            });
+
+            socket.emit('group_created', newGroup);
+        } catch (err) {
+            console.error('[ZingTalk] Error in create_group:', err);
+        }
+    });
+
+    socket.on('join_group_room', (groupId) => {
+        socket.join(groupId);
+    });
+
+    socket.on('send_group_message', (data) => {
+        // Zero-storage broadcast to group members
+        io.to(data.groupId).emit('receive_group_message', data);
+    });
+
+    // Real-Time WhatsApp-style Typing Indicator
+    socket.on('typing', (data) => {
+        if (data.isGroup) {
+            socket.to(data.targetId).emit('user_typing', data);
+        } else {
+            io.to(data.targetId).emit('user_typing', data);
+        }
+    });
+
+    socket.on('stop_typing', (data) => {
+        if (data.isGroup) {
+            socket.to(data.targetId).emit('user_stop_typing', data);
+        } else {
+            io.to(data.targetId).emit('user_stop_typing', data);
+        }
+    });
+
+    // WhatsApp-style Emoji Reactions
+    socket.on('send_reaction', (data) => {
+        if (data.isGroup) {
+            io.to(data.targetId).emit('receive_reaction', data);
+        } else {
+            io.to(data.targetId).emit('receive_reaction', data);
+        }
+    });
+
+    // Abuse / Inappropriate Content Reporting
+    socket.on('report_content', (data) => {
+        console.log(`[ZingTalk Compliance] Flagged report received from ${data.reporterUid} against target ${data.targetId}. Reason: ${data.reason}`);
+        socket.emit('report_ack', { status: 'success', message: 'Report submitted. Our moderation team has logged this incident.' });
     });
 
     socket.on('initiate_call', (data) => {
