@@ -48,7 +48,7 @@ jobs:
 
           manifest_path = "android/app/src/main/AndroidManifest.xml"
           if os.path.exists(manifest_path):
-              with open(manifest_path, "r") as f:
+              with open(manifest_path, "r", encoding="utf-8") as f:
                   content = f.read()
 
               permissions = [
@@ -59,14 +59,29 @@ jobs:
                   "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\" />"
               ]
 
-              for perm in permissions:
-                  if perm not in content:
-                      content = content.replace("<manifest", "<manifest\n    " + perm, 1)
+              perms_to_add = [p for p in permissions if p not in content]
+              if perms_to_add and "<application" in content:
+                  block = "\n    " + "\n    ".join(perms_to_add) + "\n\n    "
+                  content = content.replace("<application", block + "<application", 1)
 
-              with open(manifest_path, "w") as f:
+              with open(manifest_path, "w", encoding="utf-8") as f:
                   f.write(content)
-              print("AndroidManifest.xml updated with audio/video/network permissions.")
+              print("AndroidManifest.xml safely updated with permissions before <application>.")
           '
+
+      - name: Inject ZingTalk App Icons into Android Resources
+        run: |
+          node generate-icons.js
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            res_dir="android/app/src/main/res/mipmap-${d}"
+            mkdir -p "$res_dir"
+            if [ -f "assets/mipmap-${d}/ic_launcher.png" ]; then
+              cp "assets/mipmap-${d}/ic_launcher.png" "$res_dir/ic_launcher.png"
+              cp "assets/mipmap-${d}/ic_launcher_round.png" "$res_dir/ic_launcher_round.png"
+              cp "assets/mipmap-${d}/ic_launcher_foreground.png" "$res_dir/ic_launcher_foreground.png"
+            fi
+          done
+          echo "ZingTalk custom brand launcher icons injected into Android resources."
 
       - name: Inject google-services.json & Release Keystore
         run: |
@@ -78,6 +93,13 @@ jobs:
           if [ -f "zingtalk-release.keystore" ]; then
             cp zingtalk-release.keystore android/app/zingtalk-release.keystore
             echo "zingtalk-release.keystore successfully copied to android/app/"
+          else
+            echo "Generating 50-year release keystore fallback..."
+            keytool -genkey -v -keystore android/app/zingtalk-release.keystore \
+              -alias zingtalk -keyalg RSA -keysize 2048 -validity 18250 \
+              -storepass zingtalk123456 -keypass zingtalk123456 \
+              -dname "CN=ZingTalk, OU=Mobile, O=ZingTalk, L=Delhi, ST=Delhi, C=IN"
+            echo "50-year release keystore generated successfully."
           fi
 
       - name: Configure Signing in build.gradle

@@ -1,8 +1,27 @@
 {
   "short_name": "ZingTalk",
-  "name": "ZingTalk Chat & Calling",
+  "name": "ZingTalk Real-Time Chat & HD Calling",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#075E54",
-  "background_color": "#075E54"
+  "theme_color": "#008069",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "assets/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-round.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "assets/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png"
+    }
+  ]
 }
