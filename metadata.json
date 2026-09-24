@@ -1,0 +1,8 @@
+{
+  "name": "ZingTalk",
+  "description": "Real-time chat and audio/video calling web application with peer communication and contact management.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

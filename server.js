@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const admin = require('firebase-admin');
 
@@ -7,20 +8,93 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: ["https://zingarenaoffi1-sudo.github.io"],
+        origin: "*",
         methods: ["GET", "POST"]
     }
 });
 
-admin.initializeApp({
-    credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-    })
-});
+// Serve static frontend assets
+app.use(express.static(__dirname));
 
-const db = admin.firestore();
+// In-Memory Database Fallback for users and contacts
+const inMemoryUsers = new Map();
+
+function createMemoryDb() {
+    return {
+        collection: (colName) => ({
+            where: (field, op, val) => ({
+                get: async () => {
+                    const docs = [];
+                    for (const [id, user] of inMemoryUsers.entries()) {
+                        if (op === '==' && user[field] === val) {
+                            docs.push({
+                                id,
+                                data: () => ({ ...user })
+                            });
+                        }
+                    }
+                    return {
+                        empty: docs.length === 0,
+                        docs
+                    };
+                }
+            }),
+            doc: (id) => ({
+                _id: id,
+                get: async () => {
+                    const user = inMemoryUsers.get(id);
+                    return {
+                        exists: !!user,
+                        data: () => user ? ({ ...user }) : null
+                    };
+                },
+                set: async (data) => {
+                    inMemoryUsers.set(id, { ...data });
+                },
+                update: async (data) => {
+                    const current = inMemoryUsers.get(id) || {};
+                    inMemoryUsers.set(id, { ...current, ...data });
+                }
+            })
+        }),
+        runTransaction: async (updateFunction) => {
+            const transaction = {
+                get: async (ref) => ref.get(),
+                update: async (ref, data) => {
+                    if (ref.update) {
+                        await ref.update(data);
+                    } else if (ref._id) {
+                        const current = inMemoryUsers.get(ref._id) || {};
+                        inMemoryUsers.set(ref._id, { ...current, ...data });
+                    }
+                }
+            };
+            return await updateFunction(transaction);
+        }
+    };
+}
+
+let db;
+try {
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+            })
+        });
+        db = admin.firestore();
+        console.log('[ZingTalk] Connected to Firebase Firestore successfully.');
+    } else {
+        console.warn('[ZingTalk] Firebase Admin credentials not provided. Using in-memory store.');
+        db = createMemoryDb();
+    }
+} catch (err) {
+    console.warn('[ZingTalk] Failed to initialize Firebase Admin, using in-memory store:', err.message);
+    db = createMemoryDb();
+}
+
 const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -109,5 +183,13 @@ io.on('connection', (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {});
+// SPA fallback
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/socket.io')) return next();
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+const PORT = 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[ZingTalk] Server running on http://0.0.0.0:${PORT}`);
+});
