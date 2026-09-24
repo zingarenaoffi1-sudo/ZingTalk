@@ -1,8 +1,18 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+import { 
+    getAuth, 
+    signInWithPopup, 
+    GoogleAuthProvider, 
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    updateProfile,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 
+// Client Firebase configuration from project zing-talk-c6496
 const firebaseConfig = {
-    apiKey: "AIzaSyDDi5b_GBmRLSXQOXe-_ZA3bP6KuxHZvvQ",
+    apiKey: "AIzaSyAjvRGXKy9tHTMcyOFJXmrbYmMeVdczDjk",
     authDomain: "zing-talk-c6496.firebaseapp.com",
     projectId: "zing-talk-c6496",
     storageBucket: "zing-talk-c6496.firebasestorage.app",
@@ -16,10 +26,10 @@ try {
     auth = getAuth(app);
     provider = new GoogleAuthProvider();
 } catch (e) {
-    console.warn("Firebase client init warning:", e);
+    console.warn("Firebase client init note:", e);
 }
 
-// Connect Socket.IO to relative origin (runs on same host/port in AI Studio)
+// Socket.io connection to local server
 export const socket = (typeof io !== "undefined")
     ? io({ transports: ["websocket", "polling"] })
     : null;
@@ -36,8 +46,10 @@ export function showToast(message) {
 
 window.addEventListener("submit", (e) => e.preventDefault());
 
+// Application State
 export let currentUser = null;
-export let my5DigitUid = null;
+export let my10DigitUid = null;
+export let my5DigitUid = null; // Alias for backward compatibility
 export let currentTargetUid = null;
 let chatHistory = JSON.parse(localStorage.getItem("zingTalkHistory")) || {};
 let unreadCounts = {};
@@ -47,10 +59,17 @@ let peerConnection = null;
 let activeCallTarget = null;
 let currentCallType = "video";
 let iceCandidatesQueue = [];
+let isRegisterMode = false;
+let adTimerInterval = null;
+
+// Google's Public Free STUN Servers for WebRTC P2P Calling
 const rtcConfig = {
     iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
         { urls: "stun:stun1.l.google.com:19302" },
-        { urls: "stun:stun2.l.google.com:19302" }
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" },
+        { urls: "stun:stun4.l.google.com:19302" }
     ]
 };
 
@@ -78,8 +97,24 @@ function loginUserSession(user) {
     document.getElementById("login-screen")?.classList.add("hidden");
     document.getElementById("main-screen")?.classList.remove("hidden");
     if (socket && socket.connected) {
-        socket.emit("login_user", { email: user.email, name: user.displayName });
+        socket.emit("login_user", { email: user.email, name: user.displayName || "User" });
     }
+}
+
+function logoutUserSession() {
+    currentUser = null;
+    my10DigitUid = null;
+    my5DigitUid = null;
+    currentTargetUid = null;
+    localStorage.removeItem("zingTalkGuestUser");
+    if (auth) {
+        signOut(auth).catch(() => {});
+    }
+    document.getElementById("profile-modal")?.classList.add("hidden");
+    document.getElementById("main-screen")?.classList.add("hidden");
+    document.getElementById("chat-screen")?.classList.add("hidden");
+    document.getElementById("login-screen")?.classList.remove("hidden");
+    showToast("Logged out successfully");
 }
 
 if (auth) {
@@ -94,12 +129,43 @@ if (auth) {
     });
 }
 
+// ----------------- AdMob Interstitial Simulation -----------------
+function triggerAdMobInterstitial() {
+    const modal = document.getElementById("admob-interstitial-modal");
+    const timerText = document.getElementById("admob-timer-text");
+    const closeBtn = document.getElementById("admob-close-btn");
+    if (!modal || !timerText || !closeBtn) return;
+
+    modal.classList.remove("hidden");
+    let countdown = 5;
+    timerText.style.display = "inline";
+    timerText.textContent = `Skip in ${countdown}s`;
+    closeBtn.style.display = "none";
+
+    clearInterval(adTimerInterval);
+    adTimerInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+            timerText.textContent = `Skip in ${countdown}s`;
+        } else {
+            clearInterval(adTimerInterval);
+            timerText.style.display = "none";
+            closeBtn.style.display = "inline-block";
+        }
+    }, 1000);
+}
+
+// ----------------- Socket Events -----------------
 if (socket) {
     socket.on("user_data", (data) => {
+        my10DigitUid = data.uid;
         my5DigitUid = data.uid;
-        if (document.getElementById("my-name")) document.getElementById("my-name").innerText = currentUser.displayName;
-        if (document.getElementById("my-uid")) document.getElementById("my-uid").innerText = "UID: " + my5DigitUid;
-        if (document.getElementById("my-avatar")) document.getElementById("my-avatar").innerText = (currentUser.displayName || "U").charAt(0).toUpperCase();
+        const displayName = (currentUser && currentUser.displayName) ? currentUser.displayName : "User";
+        
+        if (document.getElementById("my-name")) document.getElementById("my-name").innerText = displayName;
+        if (document.getElementById("my-uid")) document.getElementById("my-uid").innerText = "UID: " + my10DigitUid;
+        if (document.getElementById("my-avatar")) document.getElementById("my-avatar").innerText = displayName.charAt(0).toUpperCase();
+        
         renderContacts(data.contacts);
     });
 
@@ -130,7 +196,7 @@ if (socket) {
 
     socket.on("incoming_call", (data) => {
         activeCallTarget = data.callerUid;
-        currentCallType = data.type;
+        currentCallType = data.type || "video";
 
         let callerNameToShow = "UID: " + data.callerUid;
         const knownContact = myContacts.find(c => c.uid === data.callerUid);
@@ -215,9 +281,11 @@ if (socket) {
         iceCandidatesQueue = [];
         activeCallTarget = null;
         showToast("Call ended");
+        triggerAdMobInterstitial();
     });
 }
 
+// ----------------- UI Rendering -----------------
 function renderContacts(contacts) {
     const contactsList = document.getElementById("contacts-list");
     if (!contactsList || !contacts) return;
@@ -226,9 +294,10 @@ function renderContacts(contacts) {
 
     if (contacts.length === 0) {
         contactsList.innerHTML = `
-            <div style="padding: 30px 20px; text-align: center; color: #888;">
-                <p style="font-size: 15px; margin-bottom: 8px;">No contacts added yet</p>
-                <p style="font-size: 13px; color: #aaa;">Enter a 5-digit UID and name above to start chatting!</p>
+            <div style="padding: 40px 20px; text-align: center; color: #8696a0;">
+                <svg width="48" height="48" fill="#d1d7db" viewBox="0 0 24 24" style="margin-bottom: 12px;"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                <p style="font-size: 15px; font-weight: 600; color: #54656f; margin-bottom: 6px;">No contacts added yet</p>
+                <p style="font-size: 13px;">Ask your friend for their 10-digit UID and enter it above!</p>
             </div>
         `;
         return;
@@ -242,8 +311,8 @@ function renderContacts(contacts) {
         div.innerHTML = `
             <div class="avatar small">${(contact.name || "U").charAt(0).toUpperCase()}</div>
             <div class="chat-contact-info">
-                <span class="name-text">${contact.name}</span>
-                <span style="font-size: 11px; color: #999;">UID: ${contact.uid}</span>
+                <span class="name-text" style="color: #111b21;">${contact.name}</span>
+                <span class="contact-uid-sub">UID: ${contact.uid}</span>
             </div>
             ${badge}
         `;
@@ -260,6 +329,7 @@ function openChat(contact) {
     document.getElementById("chat-screen")?.classList.remove("hidden");
 
     if (document.getElementById("chat-contact-name")) document.getElementById("chat-contact-name").innerText = contact.name;
+    if (document.getElementById("chat-contact-uid")) document.getElementById("chat-contact-uid").innerText = "UID: " + contact.uid;
     if (document.getElementById("chat-avatar")) document.getElementById("chat-avatar").innerText = (contact.name || "U").charAt(0).toUpperCase();
 
     const chatMessagesArea = document.getElementById("messages-area") || document.querySelector(".messages-container");
@@ -276,7 +346,7 @@ function sendMessageLogic() {
     const text = messageInput?.value.trim();
     if (text && currentTargetUid && socket) {
         const msgData = {
-            senderUid: my5DigitUid,
+            senderUid: my10DigitUid,
             receiverUid: currentTargetUid,
             text: text,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -308,6 +378,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
+// ----------------- WebRTC Calling -----------------
 async function startWebRTC(isCaller) {
     document.getElementById("full-call-screen")?.classList.remove("hidden");
     const localVideo = document.getElementById("local-video");
@@ -375,24 +446,128 @@ function endCall() {
     activeCallTarget = null;
     iceCandidatesQueue = [];
     document.getElementById("full-call-screen")?.classList.add("hidden");
+    triggerAdMobInterstitial();
 }
 
+function showLoginError(msg) {
+    const box = document.getElementById("login-message");
+    if (!box) return;
+    box.style.display = "block";
+    box.textContent = msg;
+}
+
+function clearLoginError() {
+    const box = document.getElementById("login-message");
+    if (!box) return;
+    box.style.display = "none";
+    box.textContent = "";
+}
+
+// ----------------- Event Listeners -----------------
 document.addEventListener("click", async (e) => {
     if (e.target.tagName === "BUTTON") e.preventDefault();
 
+    // 1. Login Tab Switchers
+    if (e.target.id === "tab-btn-google") {
+        clearLoginError();
+        document.querySelectorAll(".login-tab").forEach(t => t.classList.remove("active"));
+        e.target.classList.add("active");
+        document.querySelectorAll(".tab-pane").forEach(p => p.classList.add("hidden"));
+        document.getElementById("pane-google")?.classList.remove("hidden");
+    }
+    if (e.target.id === "tab-btn-email") {
+        clearLoginError();
+        document.querySelectorAll(".login-tab").forEach(t => t.classList.remove("active"));
+        e.target.classList.add("active");
+        document.querySelectorAll(".tab-pane").forEach(p => p.classList.add("hidden"));
+        document.getElementById("pane-email")?.classList.remove("hidden");
+    }
+    if (e.target.id === "tab-btn-guest") {
+        clearLoginError();
+        document.querySelectorAll(".login-tab").forEach(t => t.classList.remove("active"));
+        e.target.classList.add("active");
+        document.querySelectorAll(".tab-pane").forEach(p => p.classList.add("hidden"));
+        document.getElementById("pane-guest")?.classList.remove("hidden");
+    }
+
+    // Toggle between Email Sign In and Register
+    if (e.target.id === "auth-toggle-link") {
+        clearLoginError();
+        isRegisterMode = !isRegisterMode;
+        const nameGroup = document.getElementById("email-name-group");
+        const submitBtn = document.getElementById("email-submit-btn");
+        const promptText = document.getElementById("auth-toggle-prompt");
+        const linkText = document.getElementById("auth-toggle-link");
+
+        if (isRegisterMode) {
+            nameGroup.style.display = "block";
+            submitBtn.textContent = "Create Account";
+            promptText.textContent = "Already have an account?";
+            linkText.textContent = "Sign In";
+        } else {
+            nameGroup.style.display = "none";
+            submitBtn.textContent = "Sign In with Email";
+            promptText.textContent = "Don't have an account?";
+            linkText.textContent = "Register";
+        }
+    }
+
     // Google Login button
     if (e.target.id === "google-login-btn" || e.target.closest("#google-login-btn")) {
+        clearLoginError();
         if (auth && provider) {
             signInWithPopup(auth, provider).catch(err => {
-                showToast("Google Login failed: " + err.message);
-                const msgEl = document.getElementById("login-message");
-                if (msgEl) {
-                    msgEl.style.display = "block";
-                    msgEl.innerText = "Google sign-in unavailable in this environment. Please use 'Start Chatting' as Guest above.";
-                }
+                showLoginError("Google Sign-in: " + err.message);
+                showToast("Google Sign-in failed: " + err.message);
             });
         } else {
-            showToast("Google Auth not available. Please continue as Guest.");
+            showLoginError("Firebase Auth is not initialized. Please try Guest login.");
+        }
+    }
+
+    // Email & Password Auth Submit button
+    if (e.target.id === "email-submit-btn" || e.target.closest("#email-submit-btn")) {
+        clearLoginError();
+        const email = document.getElementById("email-input")?.value.trim();
+        const password = document.getElementById("password-input")?.value;
+        const displayName = document.getElementById("email-name-input")?.value.trim() || email.split("@")[0];
+
+        if (!email || !password) {
+            showLoginError("Please enter both email and password.");
+            return;
+        }
+
+        if (password.length < 6) {
+            showLoginError("Password must be at least 6 characters.");
+            return;
+        }
+
+        if (!auth) {
+            showLoginError("Firebase Auth unavailable. Please use Guest login.");
+            return;
+        }
+
+        if (isRegisterMode) {
+            createUserWithEmailAndPassword(auth, email, password)
+                .then(async (userCredential) => {
+                    if (displayName && userCredential.user) {
+                        await updateProfile(userCredential.user, { displayName });
+                    }
+                    showToast("Account created successfully!");
+                    loginUserSession({ ...userCredential.user, displayName });
+                })
+                .catch(err => {
+                    showLoginError(err.message);
+                });
+        } else {
+            signInWithEmailAndPassword(auth, email, password)
+                .then((userCredential) => {
+                    showToast("Welcome back!");
+                    loginUserSession(userCredential.user);
+                })
+                .catch(err => {
+                    showLoginError(err.message);
+                });
         }
     }
 
@@ -408,14 +583,54 @@ document.addEventListener("click", async (e) => {
         loginUserSession(guestUser);
     }
 
-    // Save Contact button
+    // Open Profile Modal (clicking profile section or header profile button)
+    if (e.target.id === "my-profile" || e.target.closest("#my-profile") || e.target.id === "header-profile-btn" || e.target.closest("#header-profile-btn")) {
+        const displayName = (currentUser && currentUser.displayName) ? currentUser.displayName : "User";
+        const email = (currentUser && currentUser.email) ? currentUser.email : "No email linked";
+        
+        document.getElementById("modal-avatar").innerText = displayName.charAt(0).toUpperCase();
+        document.getElementById("modal-name").innerText = displayName;
+        document.getElementById("modal-email").innerText = email;
+        document.getElementById("modal-uid").innerText = my10DigitUid || "Generating...";
+        document.getElementById("profile-modal")?.classList.remove("hidden");
+    }
+
+    // Close Profile Modal
+    if (e.target.id === "close-profile-modal-btn") {
+        document.getElementById("profile-modal")?.classList.add("hidden");
+    }
+
+    // Close AdMob Interstitial Modal
+    if (e.target.id === "admob-close-btn") {
+        clearInterval(adTimerInterval);
+        document.getElementById("admob-interstitial-modal")?.classList.add("hidden");
+    }
+
+    // Copy UID button inside Profile Modal
+    if (e.target.id === "copy-uid-btn") {
+        if (my10DigitUid) {
+            navigator.clipboard.writeText(my10DigitUid).then(() => {
+                showToast("10-Digit UID copied to clipboard: " + my10DigitUid);
+            }).catch(() => {
+                showToast("UID: " + my10DigitUid);
+            });
+        }
+    }
+
+    // Logout from Header or Modal
+    if (e.target.id === "header-logout-btn" || e.target.closest("#header-logout-btn") || e.target.id === "modal-logout-btn") {
+        logoutUserSession();
+    }
+
+    // Save Contact button (10-Digit UID)
     if (e.target.id === "save-contact-btn" || e.target.closest("#save-contact-btn")) {
         const targetUid = document.getElementById("search-uid-input")?.value.trim();
         const customName = document.getElementById("save-name-input")?.value.trim();
-        if (targetUid === my5DigitUid) return showToast("You cannot save your own UID!");
-        if (!targetUid || !customName) return showToast("Please enter UID and a name");
+        if (targetUid === my10DigitUid) return showToast("You cannot save your own UID!");
+        if (!targetUid || !customName) return showToast("Please enter UID and a custom name");
+        if (targetUid.length < 5) return showToast("Please enter a valid UID");
         if (socket) {
-            socket.emit("save_contact", { myUid: my5DigitUid, targetUid, customName });
+            socket.emit("save_contact", { myUid: my10DigitUid, targetUid, customName });
         }
     }
 
@@ -433,9 +648,10 @@ document.addEventListener("click", async (e) => {
 
     // Call buttons (Audio / Video)
     const text = e.target.innerText || "";
-    if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn") {
+    if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn" || e.target.closest("#video-call-btn") || e.target.closest("#audio-call-btn")) {
         if (!currentTargetUid) return showToast("Please open a chat to make a call!");
-        currentCallType = (text.includes("Video") || e.target.id === "video-call-btn") ? "video" : "audio";
+        const isVideo = text.includes("Video") || e.target.id === "video-call-btn" || !!e.target.closest("#video-call-btn");
+        currentCallType = isVideo ? "video" : "audio";
         activeCallTarget = currentTargetUid;
 
         let targetNameToShow = "UID: " + currentTargetUid;
@@ -450,7 +666,7 @@ document.addEventListener("click", async (e) => {
 
         if (socket) {
             socket.emit("initiate_call", {
-                callerUid: my5DigitUid,
+                callerUid: my10DigitUid,
                 targetUid: currentTargetUid,
                 callerName: currentUser ? currentUser.displayName : "User",
                 type: currentCallType
@@ -505,5 +721,8 @@ document.addEventListener("keypress", (e) => {
     } else if (e.key === "Enter" && document.activeElement === document.getElementById("guest-name-input")) {
         e.preventDefault();
         document.getElementById("guest-login-btn")?.click();
+    } else if (e.key === "Enter" && (document.activeElement === document.getElementById("email-input") || document.activeElement === document.getElementById("password-input"))) {
+        e.preventDefault();
+        document.getElementById("email-submit-btn")?.click();
     }
 });

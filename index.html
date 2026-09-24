@@ -13,94 +13,213 @@
 </head>
 <body>
 
-    <div id="login-screen" class="screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-        <div class="login-container" style="max-width: 360px; width: 100%;">
-            <h1>ZingTalk</h1>
-            <p style="color: #666; font-size: 14px; text-align: center; margin-top: -15px;">Connect instantly with chat & calling</p>
-            
-            <button id="google-login-btn" class="primary-btn" style="width: 100%;">Login with Google</button>
-
-            <div style="display: flex; align-items: center; width: 100%; gap: 10px; margin: 10px 0;">
-                <hr style="flex: 1; border: none; border-top: 1px solid #ddd;">
-                <span style="color: #888; font-size: 12px; font-weight: 600;">OR CONTINUE AS GUEST</span>
-                <hr style="flex: 1; border: none; border-top: 1px solid #ddd;">
+    <!-- 1. LOGIN SCREEN -->
+    <div id="login-screen" class="screen login-screen">
+        <div class="login-container">
+            <div class="brand-header">
+                <h1>ZingTalk</h1>
+                <p>Connect instantly with real-time chat & calling</p>
             </div>
 
-            <div style="width: 100%; display: flex; flex-direction: column; gap: 10px;">
-                <input type="text" id="guest-name-input" placeholder="Enter your display name" style="width: 100%; padding: 12px 16px; border: 1px solid #ccc; border-radius: 25px; font-size: 14px; outline: none; box-sizing: border-box;">
-                <button id="guest-login-btn" class="primary-btn" style="background-color: #25D366; width: 100%;">Start Chatting</button>
+            <!-- 3 Login Options Segmented Tabs -->
+            <div class="login-tabs">
+                <button type="button" class="login-tab active" id="tab-btn-google">Google</button>
+                <button type="button" class="login-tab" id="tab-btn-email">Email / Pass</button>
+                <button type="button" class="login-tab" id="tab-btn-guest">Guest</button>
             </div>
-            
-            <div id="login-message" style="display: none; font-size: 12px; color: #d32f2f; text-align: center; margin-top: 5px;"></div>
+
+            <!-- Tab 1: Google Login -->
+            <div id="pane-google" class="tab-pane">
+                <p style="font-size: 13px; color: #667781; text-align: center; margin: 4px 0;">Sign in seamlessly with your Google Account</p>
+                <button id="google-login-btn" class="primary-btn google-btn">
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+                        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                        <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+                        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+                    </svg>
+                    <span>Sign in with Google</span>
+                </button>
+            </div>
+
+            <!-- Tab 2: Email & Password -->
+            <div id="pane-email" class="tab-pane hidden">
+                <div id="email-name-group" style="display: none;">
+                    <input type="text" id="email-name-input" class="form-input" placeholder="Your Display Name">
+                </div>
+                <input type="email" id="email-input" class="form-input" placeholder="Email Address">
+                <input type="password" id="password-input" class="form-input" placeholder="Password (min 6 characters)">
+                
+                <button id="email-submit-btn" class="primary-btn">Sign In with Email</button>
+                
+                <div class="auth-subtoggle">
+                    <span id="auth-toggle-prompt">Don't have an account?</span>
+                    <span id="auth-toggle-link" class="action-link">Register</span>
+                </div>
+            </div>
+
+            <!-- Tab 3: Guest Login -->
+            <div id="pane-guest" class="tab-pane hidden">
+                <p style="font-size: 13px; color: #667781; text-align: center; margin: 4px 0;">Instant access without password</p>
+                <input type="text" id="guest-name-input" class="form-input" placeholder="Enter your nickname (e.g. Aman)">
+                <button id="guest-login-btn" class="primary-btn guest-btn">Continue as Guest</button>
+            </div>
+
+            <div id="login-message" class="error-box" style="display: none;"></div>
+
+            <!-- AdMob Login Screen Test Banner -->
+            <div class="admob-test-banner" style="border-radius: 8px; margin-top: 5px; width: 100%;">
+                <div class="admob-badge">Test Ad</div>
+                <div class="admob-banner-content">
+                    <span class="admob-title">Google AdMob Smart Banner</span>
+                    <span class="admob-sub">ca-app-pub-3940256099942544/6300978111</span>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- 2. MAIN SCREEN (DASHBOARD) -->
     <div id="main-screen" class="screen hidden">
         <header class="main-header">
-            <div id="my-profile" class="profile-section">
+            <div id="my-profile" class="profile-section" title="Click to view full profile & 10-digit UID">
                 <div id="my-avatar" class="avatar"></div>
                 <div class="user-details">
-                    <span id="my-name" class="name-text"></span>
-                    <span id="my-uid" class="uid-text"></span>
+                    <span id="my-name" class="name-text">Loading...</span>
+                    <span id="my-uid" class="uid-text">UID: ----------</span>
                 </div>
+            </div>
+            <div class="header-actions">
+                <button id="header-profile-btn" class="icon-btn" title="View Profile">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                </button>
+                <button id="header-logout-btn" class="icon-btn" title="Logout">
+                    <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                </button>
             </div>
         </header>
 
+        <!-- 10-Digit Search and Contact Save Section -->
         <div class="search-section">
-            <input type="number" id="search-uid-input" placeholder="Enter 5-digit UID">
-            <input type="text" id="save-name-input" placeholder="Custom Name">
-            <button id="save-contact-btn" class="action-btn">Save</button>
+            <input type="text" id="search-uid-input" maxlength="10" placeholder="Enter 10-digit UID">
+            <input type="text" id="save-name-input" placeholder="Custom Name (e.g. Rahul)">
+            <button id="save-contact-btn" class="action-btn">Save Contact</button>
         </div>
 
+        <!-- Contact List -->
         <div id="contacts-list" class="list-container"></div>
+
+        <!-- AdMob Test Banner Container (Sticky bottom of main screen) -->
+        <div class="admob-test-banner">
+            <div class="admob-badge">Test Ad</div>
+            <div class="admob-banner-content">
+                <span class="admob-title">Google AdMob Banner (320x50)</span>
+                <span class="admob-sub">ca-app-pub-3940256099942544/6300978111</span>
+            </div>
+        </div>
     </div>
 
+    <!-- 3. CHAT SCREEN -->
     <div id="chat-screen" class="screen hidden">
         <header class="chat-header">
-            <button id="back-btn" class="icon-btn">Back</button>
-            <div class="chat-contact-info">
+            <button id="back-btn" class="icon-btn" title="Back">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <div class="chat-contact-header">
                 <div id="chat-avatar" class="avatar small"></div>
-                <span id="chat-contact-name" class="name-text"></span>
+                <div style="display: flex; flex-direction: column;">
+                    <span id="chat-contact-name" class="name-text"></span>
+                    <span id="chat-contact-uid" style="font-size: 11px; color: #dcf8c6;"></span>
+                </div>
             </div>
             <div class="call-buttons">
-                <button id="audio-call-btn" class="icon-btn">Audio</button>
-                <button id="video-call-btn" class="icon-btn">Video</button>
+                <button id="audio-call-btn" class="call-btn" title="Start Audio Call">
+                    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg>
+                    <span>Audio</span>
+                </button>
+                <button id="video-call-btn" class="call-btn" title="Start Video Call">
+                    <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                    <span>Video</span>
+                </button>
             </div>
         </header>
 
         <div id="messages-area" class="messages-container"></div>
 
         <div class="input-area">
-            <input type="text" id="message-input" placeholder="Message...">
+            <input type="text" id="message-input" placeholder="Type a message...">
             <button id="send-btn" class="action-btn">Send</button>
         </div>
     </div>
 
-    <div id="call-screen-container">
-        <div id="full-call-screen" class="hidden">
-            <video id="remote-video" autoplay playsinline></video>
-            <video id="local-video" autoplay playsinline muted></video>
-            <div class="call-controls">
-                <button id="end-call-btn" class="danger-btn">End Call</button>
+    <!-- 4. CALL SCREENS & OVERLAYS -->
+    <div id="full-call-screen" class="hidden">
+        <video id="remote-video" autoplay playsinline></video>
+        <video id="local-video" autoplay playsinline muted></video>
+        <div class="call-controls">
+            <button id="end-call-btn" class="danger-btn">
+                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.28 8.76 7.42 7 12 7s8.72 1.76 11.71 4.67c.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+                <span>End Call</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="incoming-call-overlay" class="hidden">
+        <h2 id="caller-name-display">Incoming Call</h2>
+        <div class="call-actions">
+            <button id="accept-call-btn" class="accept-btn">Accept</button>
+            <button id="reject-call-btn" class="reject-btn">Reject</button>
+        </div>
+    </div>
+
+    <div id="outgoing-call-overlay" class="hidden">
+        <h2 id="outgoing-call-name">Calling...</h2>
+        <div class="call-actions">
+            <button id="cancel-outgoing-btn" class="reject-btn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- AdMob Test Interstitial Modal (Triggers on Call End) -->
+    <div id="admob-interstitial-modal" class="modal-overlay hidden">
+        <div class="admob-interstitial-card">
+            <div class="admob-interstitial-header">
+                <span class="admob-badge">AdMob Test Ad</span>
+                <span id="admob-timer-text" style="font-size: 12px; color: #5f6368; font-weight: 600;">Reward in 5s</span>
+                <button id="admob-close-btn" class="admob-skip-btn" style="display: none;">Close &times;</button>
+            </div>
+            <div class="admob-interstitial-body">
+                <div class="admob-icon-box">📢</div>
+                <h3 style="color: #202124; font-size: 18px;">Google AdMob Interstitial</h3>
+                <p style="font-size: 11px; color: #5f6368; font-family: monospace;">ca-app-pub-3940256099942544/1033173712</p>
+                <div style="background: #e8f0fe; color: #1a73e8; padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600; width: 100%;">
+                    High-Paying Post-Call Ad Simulation
+                </div>
             </div>
         </div>
-        <div id="incoming-call-overlay" class="hidden">
-            <h2 id="caller-name-display"></h2>
-            <div class="call-actions">
-                <button id="accept-call-btn" class="accept-btn">Accept</button>
-                <button id="reject-call-btn" class="reject-btn">Reject</button>
+    </div>
+
+    <!-- 5. PROFILE MODAL -->
+    <div id="profile-modal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div id="modal-avatar" class="avatar large">U</div>
+            <h3 id="modal-name" class="modal-title">User Profile</h3>
+            <p id="modal-email" style="font-size: 13px; color: #667781; word-break: break-all; margin-bottom: 12px;"></p>
+            
+            <p style="font-size: 12px; font-weight: 600; color: #54656f; margin-bottom: 4px;">YOUR 10-DIGIT UID</p>
+            <div class="uid-highlight-box">
+                <span id="modal-uid" class="uid-val-text">----------</span>
+                <button type="button" id="copy-uid-btn" class="copy-btn">Copy UID</button>
             </div>
-        </div>
-        <div id="outgoing-call-overlay" class="hidden">
-            <h2 id="outgoing-call-name"></h2>
-            <div class="call-actions">
-                <button id="cancel-outgoing-btn" class="reject-btn">Cancel</button>
+            <p style="font-size: 11px; color: #8696a0; margin-bottom: 16px;">Share this 10-digit UID with friends so they can add and message you!</p>
+
+            <div class="modal-actions">
+                <button type="button" id="close-profile-modal-btn" class="secondary-btn">Close</button>
+                <button type="button" id="modal-logout-btn" class="logout-btn">Log Out</button>
             </div>
         </div>
     </div>
 
     <!-- Toast Notification Container -->
-    <div id="toast" style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: #333; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10000000;"></div>
+    <div id="toast" style="position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%); background-color: #1f2c34; color: #e9edef; padding: 12px 24px; border-radius: 25px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 10000000; box-shadow: 0 4px 15px rgba(0,0,0,0.4); max-width: 90%; text-align: center;"></div>
 
     <script type="module" src="app.js"></script>
 

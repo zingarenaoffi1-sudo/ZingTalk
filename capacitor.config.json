@@ -1,0 +1,6 @@
+{
+  "appId": "com.zingtalk.com",
+  "appName": "ZingTalk",
+  "webDir": ".",
+  "bundledWebRuntime": false
+}

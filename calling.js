@@ -1,4 +1,4 @@
 // calling.js - WebRTC helper utilities module
-import { socket, my5DigitUid, currentTargetUid } from './app.js';
+import { socket, my10DigitUid, my5DigitUid, currentTargetUid } from './app.js';
 
-export { socket, my5DigitUid, currentTargetUid };
+export { socket, my10DigitUid, my5DigitUid, currentTargetUid };
