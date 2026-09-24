@@ -9,7 +9,12 @@
     <meta property="og:description" content="Real-time chat, HD audio/video calling and zero-server media sharing app.">
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        if (typeof io === "undefined") {
+            document.write('<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"><\/script>');
+        }
+    </script>
 </head>
 <body>
 
@@ -207,8 +212,14 @@
             <!-- Message Thread Container -->
             <div id="messages-area" class="messages-container"></div>
 
+            <!-- Blocked Notice Banner (WhatsApp-style) -->
+            <div id="blocked-chat-banner" class="blocked-chat-banner hidden">
+                <span>You blocked this contact.</span>
+                <button type="button" id="chat-unblock-btn" class="chat-unblock-link">Tap to unblock</button>
+            </div>
+
             <!-- Chat Input Bar & Attachments -->
-            <div class="chat-input-bar">
+            <div id="chat-input-bar" class="chat-input-bar">
                 <button type="button" id="attach-btn" class="attach-btn" title="Share Photos, Voice Notes, or Videos">
                     📎
                 </button>
@@ -342,6 +353,12 @@
                 <div class="uid-copy-container">
                     <span id="modal-uid" class="uid-digits">----------</span>
                     <button type="button" id="copy-uid-btn" class="copy-pill-btn">Copy</button>
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <button type="button" id="open-blocked-list-btn" class="secondary-pill" style="width: 100%; font-size: 12.5px;">
+                        🚫 Blocked Contacts (<span id="blocked-count-badge">0</span>)
+                    </button>
                 </div>
 
                 <div style="margin-bottom: 14px;">
@@ -506,9 +523,39 @@
             <button type="button" id="opt-group-info" class="chat-opt-item hidden">
                 <span>ℹ️ Group Details</span>
             </button>
-            <button type="button" id="opt-report-user" class="chat-opt-item" style="color: #ea4335;">
-                <span>🛡️ Report & Block</span>
+            <button type="button" id="opt-block-user" class="chat-opt-item">
+                <span id="opt-block-text" style="color: #ea4335;">🚫 Block Contact</span>
             </button>
+            <button type="button" id="opt-report-user" class="chat-opt-item" style="color: #667781;">
+                <span>🛡️ Report Content</span>
+            </button>
+        </div>
+
+        <!-- BLOCK CONFIRMATION MODAL -->
+        <div id="block-confirm-modal" class="modal-overlay hidden">
+            <div class="modal-sheet">
+                <div style="font-size: 36px; margin-bottom: 8px;">🚫</div>
+                <h3 id="block-modal-title" style="font-size: 18px; font-weight: 800; color: #111b21; margin-bottom: 6px;">Block Contact?</h3>
+                <p id="block-modal-desc" style="font-size: 13px; color: #667781; line-height: 1.4; margin-bottom: 20px;">
+                    Blocked contacts will no longer be able to call you or send you messages. This contact will not be notified.
+                </p>
+                <div class="modal-buttons">
+                    <button type="button" id="cancel-block-btn" class="secondary-pill">Cancel</button>
+                    <button type="button" id="confirm-block-btn" class="danger-pill" style="flex: 1;">Block</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BLOCKED CONTACTS LIST MODAL -->
+        <div id="blocked-list-modal" class="modal-overlay hidden">
+            <div class="modal-sheet">
+                <h3 style="font-size: 18px; font-weight: 800; color: #111b21; margin-bottom: 4px;">Blocked Contacts</h3>
+                <p style="font-size: 12px; color: #667781; margin-bottom: 14px;">Blocked contacts cannot call or message you.</p>
+                <div id="blocked-users-feed" style="max-height: 200px; overflow-y: auto; margin-bottom: 16px; text-align: left;"></div>
+                <div class="modal-buttons">
+                    <button type="button" id="close-blocked-modal-btn" class="secondary-pill">Close</button>
+                </div>
+            </div>
         </div>
 
         <!-- Message Reactions Popover -->

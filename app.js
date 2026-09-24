@@ -169,15 +169,37 @@ function triggerAdMobInterstitial() {
 // ----------------- Socket Events -----------------
 if (socket) {
     socket.on("user_data", (data) => {
-        my10DigitUid = data.uid;
-        my5DigitUid = data.uid;
+        my10DigitUid = String(data.uid);
+        my5DigitUid = String(data.uid);
         const displayName = (currentUser && currentUser.displayName) ? currentUser.displayName : "User";
         
         if (document.getElementById("my-name")) document.getElementById("my-name").innerText = displayName;
         if (document.getElementById("my-uid-label")) document.getElementById("my-uid-label").innerText = "UID: " + my10DigitUid;
         if (document.getElementById("my-avatar")) document.getElementById("my-avatar").innerText = displayName.charAt(0).toUpperCase();
         
+        // Sync active blocks with server
+        blockedUids.forEach(bUid => {
+            socket.emit("block_user", { blockerUid: my10DigitUid, blockedUid: bUid });
+        });
+        updateBlockedCountBadge();
+
         renderContacts(data.contacts);
+    });
+
+    socket.on("message_status", (status) => {
+        const msgEl = document.querySelector(`.msg-bubble[data-msg-id="${status.msgId}"]`);
+        if (msgEl) {
+            const checkEl = msgEl.querySelector(".msg-meta span");
+            if (checkEl) {
+                if (status.delivered) {
+                    checkEl.innerHTML = "✓✓";
+                    checkEl.style.color = "#53bdeb";
+                } else {
+                    checkEl.innerHTML = "✓";
+                    checkEl.style.color = "#8696a0"; // Emulates WhatsApp single checkmark when blocked
+                }
+            }
+        }
     });
 
     socket.on("contact_saved", (contacts) => {
@@ -460,6 +482,107 @@ function saveGroupMessage(groupId, msg) {
     } catch (_) {}
 }
 
+function updateBlockedCountBadge() {
+    const badge = document.getElementById("blocked-count-badge");
+    if (badge) badge.innerText = blockedUids.length;
+}
+
+function updateChatBlockUI() {
+    const banner = document.getElementById("blocked-chat-banner");
+    const inputBar = document.getElementById("chat-input-bar");
+    const optBlock = document.getElementById("opt-block-user");
+    const blockText = document.getElementById("opt-block-text");
+
+    if (isGroupMode || !currentTargetUid) {
+        banner?.classList.add("hidden");
+        inputBar?.classList.remove("hidden");
+        optBlock?.classList.add("hidden");
+        return;
+    }
+
+    optBlock?.classList.remove("hidden");
+    const isBlocked = blockedUids.includes(currentTargetUid);
+
+    if (isBlocked) {
+        banner?.classList.remove("hidden");
+        inputBar?.classList.add("hidden");
+        if (blockText) {
+            blockText.innerText = "✅ Unblock Contact";
+            blockText.style.color = "#008069";
+        }
+    } else {
+        banner?.classList.add("hidden");
+        inputBar?.classList.remove("hidden");
+        if (blockText) {
+            blockText.innerText = "🚫 Block Contact";
+            blockText.style.color = "#ea4335";
+        }
+    }
+}
+
+function blockUser(uid) {
+    if (!uid) return;
+    if (!blockedUids.includes(uid)) {
+        blockedUids.push(uid);
+        try {
+            localStorage.setItem("zingTalkBlockedUids", JSON.stringify(blockedUids));
+        } catch (_) {}
+    }
+    if (socket) {
+        socket.emit("block_user", { blockerUid: my10DigitUid, blockedUid: uid });
+    }
+    updateChatBlockUI();
+    updateBlockedCountBadge();
+    const contact = myContacts.find(c => c.uid === uid);
+    const name = contact ? contact.name : ("UID: " + uid);
+    showToast(`${name} has been blocked`);
+}
+
+function unblockUser(uid) {
+    if (!uid) return;
+    blockedUids = blockedUids.filter(id => id !== uid);
+    try {
+        localStorage.setItem("zingTalkBlockedUids", JSON.stringify(blockedUids));
+    } catch (_) {}
+    if (socket) {
+        socket.emit("unblock_user", { blockerUid: my10DigitUid, blockedUid: uid });
+    }
+    updateChatBlockUI();
+    updateBlockedCountBadge();
+    const contact = myContacts.find(c => c.uid === uid);
+    const name = contact ? contact.name : ("UID: " + uid);
+    showToast(`${name} has been unblocked`);
+    renderBlockedListModal();
+}
+
+function renderBlockedListModal() {
+    const feed = document.getElementById("blocked-users-feed");
+    if (!feed) return;
+    feed.innerHTML = "";
+    if (blockedUids.length === 0) {
+        feed.innerHTML = `<div style="text-align: center; color: #8696a0; padding: 24px 16px; font-size: 13px;">No blocked contacts</div>`;
+        return;
+    }
+    blockedUids.forEach(uid => {
+        const contact = myContacts.find(c => c.uid === uid);
+        const name = contact ? contact.name : ("User " + uid);
+        const row = document.createElement("div");
+        row.className = "blocked-item-row";
+        row.innerHTML = `
+            <div class="blocked-item-info">
+                <span class="blocked-item-name">${escapeHtml(name)}</span>
+                <span class="blocked-item-uid">UID: ${uid}</span>
+            </div>
+            <button type="button" class="unblock-mini-btn" data-unblock-uid="${uid}">Unblock</button>
+        `;
+        row.querySelector(".unblock-mini-btn").onclick = (e) => {
+            e.stopPropagation();
+            unblockUser(uid);
+        };
+        feed.appendChild(row);
+    });
+}
+
 function openChat(contact) {
     isGroupMode = false;
     currentGroup = null;
@@ -481,6 +604,7 @@ function openChat(contact) {
             chatHistory[contact.uid].forEach(msg => appendMessage(msg, msg.type));
         }
     }
+    updateChatBlockUI();
 }
 
 function sendMessageLogic() {
@@ -1139,11 +1263,59 @@ document.addEventListener("click", async (e) => {
         const targetUid = document.getElementById("search-uid-input")?.value.trim();
         const customName = document.getElementById("save-name-input")?.value.trim();
         if (targetUid === my10DigitUid) return showToast("You cannot save your own UID!");
-        if (!targetUid || !customName) return showToast("Please enter 10-digit UID and a name");
-        if (targetUid.length < 5) return showToast("Please enter a valid UID");
+        if (!targetUid || !customName) return showToast("Please enter 10-digit UID and a custom name");
+        if (targetUid.length !== 10 || !/^\d{10}$/.test(targetUid)) return showToast("Please enter a valid 10-digit UID (e.g. 1234567890)");
         if (socket) {
             socket.emit("save_contact", { myUid: my10DigitUid, targetUid, customName });
         }
+    }
+
+    // Block / Unblock Contact from Chat Options Popover
+    if (e.target.id === "opt-block-user" || e.target.closest("#opt-block-user")) {
+        document.getElementById("chat-options-popover")?.classList.add("hidden");
+        if (!currentTargetUid) return;
+        if (blockedUids.includes(currentTargetUid)) {
+            unblockUser(currentTargetUid);
+        } else {
+            const contact = myContacts.find(c => c.uid === currentTargetUid);
+            const name = contact ? contact.name : ("UID: " + currentTargetUid);
+            const titleEl = document.getElementById("block-modal-title");
+            const descEl = document.getElementById("block-modal-desc");
+            if (titleEl) titleEl.innerText = `Block ${name}?`;
+            if (descEl) descEl.innerText = `Blocked contacts will no longer be able to call you or send you messages. ${name} will not be notified.`;
+            document.getElementById("block-confirm-modal")?.classList.remove("hidden");
+        }
+    }
+
+    // Confirm Block in Modal
+    if (e.target.id === "confirm-block-btn") {
+        if (currentTargetUid) {
+            blockUser(currentTargetUid);
+        }
+        document.getElementById("block-confirm-modal")?.classList.add("hidden");
+    }
+
+    // Cancel Block Modal
+    if (e.target.id === "cancel-block-btn") {
+        document.getElementById("block-confirm-modal")?.classList.add("hidden");
+    }
+
+    // Chat Bottom Banner "Tap to unblock"
+    if (e.target.id === "chat-unblock-btn") {
+        if (currentTargetUid) {
+            unblockUser(currentTargetUid);
+        }
+    }
+
+    // Open Blocked Contacts List Modal from Profile
+    if (e.target.id === "open-blocked-list-btn" || e.target.closest("#open-blocked-list-btn")) {
+        renderBlockedListModal();
+        document.getElementById("blocked-list-modal")?.classList.remove("hidden");
+    }
+
+    // Close Blocked Contacts List Modal
+    if (e.target.id === "close-blocked-modal-btn") {
+        document.getElementById("blocked-list-modal")?.classList.add("hidden");
     }
 
     // Typing Indicator listener on chat input
@@ -1432,6 +1604,9 @@ document.addEventListener("click", async (e) => {
     const text = e.target.innerText || "";
     if (text.includes("Video") || text.includes("Audio") || e.target.id === "video-call-btn" || e.target.id === "audio-call-btn" || e.target.closest("#video-call-btn") || e.target.closest("#audio-call-btn")) {
         if (!currentTargetUid) return showToast("Please open a chat to make a call!");
+        if (blockedUids.includes(currentTargetUid)) {
+            return showToast("You blocked this contact. Unblock to make a call.");
+        }
         const isVideo = text.includes("Video") || e.target.id === "video-call-btn" || !!e.target.closest("#video-call-btn");
         currentCallType = isVideo ? "video" : "audio";
         activeCallTarget = currentTargetUid;

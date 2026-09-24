@@ -75,30 +75,37 @@ function createMemoryDb() {
     };
 }
 
-const defaultProjectId = "zing-talk-c6496";
-const defaultClientEmail = "firebase-adminsdk-fbsvc@zing-talkc6496.iam.gserviceaccount.com";
-const defaultPrivateKey = `-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCuymPxf21ZEf7V\nli8N80rVTv5n5/GNeLB0CHv7BXJLamNzNIUg1GTPLNVSh6h9y2fJN9Jp+SpMKfAi\njJn3bkVV8fBvS5zKj7U9G2U9DhajX0JCLFEnKoo9ydO7JwT18WzG25GAvD6grGKC\nf7Ud/OQgqvmmQ0WqIRGGeZT5YKqurEcB3iseqpimg6tqLoYRqHoaUnOAlfqVVjWx\nfVHZSeM0AdYaQCAYCmiGF2xwRTuUl7aeqK6iQqkaf4QMBbdt3QoypwbOTqQJV/1x\nhKfsNBCdF6TsNiFzZFzJMQWUsIQVRY7Klcy/MYQDDDIMP89v/Zj8UG0CvO8HBuYc\nxyXOzaWdAgMBAAECggEAIPsTbKgMq/fXS9nwuwMjJaioHFcJnxYcxWgsbKsUa+KB\nLWXFkPJCq0zcW5w5ULMmvDMKQvC+6GwpYXuCOcvWzWa/ZWCxDw+atRMMQT79SopY\n6D+QeIFwYERK7U9pgjaxvbwEcnQSpSKh29nZBPWI3hkkzhh3dqiSs/sQ/xUcX6TW\nJu0C4d3FjMwOB7tq8Aai2NNBm0OCi2VefgR8j8n3VtZVbtB4ePoFNybfdYiUqXaa\njkn6/mlwKZ4AFPIIzvPKp9RVcgXMVhPWXbfsx4a9/aNrM/LvKHOIbCGKEFWf+ykP\nlw5tT/806l5//A2Nndwhwaj4I5ZnFHDbfJ0pGV2SiQKBgQDiOpKojATLipZDnYX7\nfkzHSnTpNp71yioUhHUaTFbI8P4niC2JV1wORQCX6KNtYolysytE2dbDBGH0AiJs\nOB0UevmKvhWH7CPNUKNDbLkzYlXgb67j2qOY1lu5lQ/vLP1L2xs0XqwDLdf/Gy43\n3Jpgvo1WxRk5xjx6UmnFw5GBlwKBgQDFyuoXPGPQyEIkW2OMc0dvFiAmaX3VaKym\nQrUbg7SkaOfaWiNUrv3NdPdkW74+7/LwOWadUpPCQA3gd3tAQkhkxTzW+pWj1qXq\nShI9Il9hy/jxAjft6DFTDBcf/SZEpoLqSZLEdp7S0jwkJih0MAYHDsuJlJOL9Luu\nyvjvdLfQ6wKBgE87ZmwDhhZndlM+E1POm0NdL28Sgz/gSzaeYYkRXX/I76qWxiQI\n5aPVxOxvPPWtgiga2jel99KbcVcNfFLcoEqw+z79bfsJ2EwrRtLxfDej5CHT27PP\numZoBP4NV+RTpG7x0ShZU/NVFgYx1dEYwTTK6COQqlISvNG2lXb/FLIHAoGAIvnX\n3VYDfJb9AzrZ5qs39Y/fDYvYAZXp+diP+BaZKf2XCkioOMBdByjo2mlSwgRiXFJ6\nL9W7ZT04dvoJ5HoUHSW3tXhIX9mEK2L/yKm8XinYkp3G0B4gIsRfjnuQedFMEywB\ndRZYzYT5t5a7zpfzaOoX2fNZCAW17pnb3VQxcRMCgYEAgRA43Y+awdPk65Nycvpo\nby8NYPs1PYef8O+ebHED6bqfT+M0AiOzb1BHU/ZtYnjJ5b76t48HcN276z/fTj6z\n8XvrG0F8epcvSWzYmsEgcoWeyJTytWXr1ai6sBFQ3IxxgVVL8RTgVSCFX1wrqMlM\nsM1nbrLc3w+Qg3xcexF9tGk=\n-----END PRIVATE KEY-----\n`;
+const memoryDb = createMemoryDb();
+let db = memoryDb;
 
-const fbProjectId = process.env.FIREBASE_PROJECT_ID || defaultProjectId;
-const fbClientEmail = process.env.FIREBASE_CLIENT_EMAIL || defaultClientEmail;
-const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY || defaultPrivateKey;
-const fbPrivateKey = rawPrivateKey.replace(/\\n/g, '\n');
-
-let db;
-try {
-    admin.initializeApp({
-        credential: admin.credential.cert({
-            projectId: fbProjectId,
-            clientEmail: fbClientEmail,
-            privateKey: fbPrivateKey
-        })
-    });
-    db = admin.firestore();
-    console.log('[ZingTalk] Initialized Firebase Admin Firestore successfully for project:', fbProjectId);
-} catch (err) {
-    console.warn('[ZingTalk] Firebase Admin initialization note:', err.message);
-    db = createMemoryDb();
+if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    try {
+        const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
+        const fbPrivateKey = rawPrivateKey.replace(/\\n/g, '\n');
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: fbPrivateKey
+            })
+        });
+        db = admin.firestore();
+        console.log('[ZingTalk] Initialized Firebase Admin Firestore successfully for project:', process.env.FIREBASE_PROJECT_ID);
+    } catch (err) {
+        console.warn('[ZingTalk] Firebase Admin initialization note:', err.message);
+        db = memoryDb;
+    }
+} else {
+    console.log('[ZingTalk] Initialized in-memory database store (zero cloud configuration required).');
 }
+
+// Pre-seed a support contact in memory for instant contact testing
+inMemoryUsers.set("1000000001", {
+    uid: "1000000001",
+    name: "ZingTalk Support",
+    email: "support@zingtalk.local",
+    contacts: []
+});
 
 // Generate unique 10-digit UID
 function generate10DigitUid() {
@@ -110,14 +117,29 @@ const connectedUsers = new Map();
 // In-Memory Groups Registry (Zero disk/Firebase storage load)
 const inMemoryGroups = new Map();
 
+// WhatsApp-style In-Memory Block Registry (blockerUid -> Set of blockedUids)
+const inMemoryBlocks = new Map();
+
 io.on('connection', (socket) => {
     socket.on('login_user', async (data) => {
         try {
             let uid;
-            const usersRef = db.collection('users');
-            const snapshot = await usersRef.where('email', '==', data.email).get();
+            let usersRef = db.collection('users');
+            let snapshot;
+            try {
+                snapshot = await usersRef.where('email', '==', data.email).get();
+            } catch (fsErr) {
+                console.warn('[ZingTalk] Database query failed, falling back to memory store:', fsErr.message);
+                db = memoryDb;
+                usersRef = db.collection('users');
+                snapshot = await usersRef.where('email', '==', data.email).get();
+            }
 
-            if (snapshot.empty) {
+            const existingDoc = !snapshot.empty ? snapshot.docs[0].data() : null;
+            const existingUid = existingDoc ? String(existingDoc.uid || "") : "";
+
+            // Strict enforcement: UID MUST be exactly 10 digits
+            if (snapshot.empty || !existingUid || existingUid.length !== 10) {
                 let isUnique = false;
                 while (!isUnique) {
                     uid = generate10DigitUid();
@@ -125,14 +147,15 @@ io.on('connection', (socket) => {
                     if (uidCheck.empty) isUnique = true;
                 }
                 const newUser = {
+                    ...(existingDoc || {}),
                     uid: uid,
                     email: data.email,
-                    name: data.name || "User",
-                    contacts: []
+                    name: data.name || (existingDoc && existingDoc.name) || "User",
+                    contacts: (existingDoc && existingDoc.contacts) || []
                 };
                 await usersRef.doc(uid).set(newUser);
             } else {
-                uid = snapshot.docs[0].data().uid;
+                uid = existingUid;
             }
 
             connectedUsers.set(uid, socket.id);
@@ -152,11 +175,38 @@ io.on('connection', (socket) => {
         }
     });
 
+    // WhatsApp-Style Block / Unblock Handlers
+    socket.on('block_user', (data) => {
+        if (!data.blockerUid || !data.blockedUid) return;
+        if (!inMemoryBlocks.has(data.blockerUid)) {
+            inMemoryBlocks.set(data.blockerUid, new Set());
+        }
+        inMemoryBlocks.get(data.blockerUid).add(data.blockedUid);
+        console.log(`[ZingTalk Block] ${data.blockerUid} blocked ${data.blockedUid}`);
+    });
+
+    socket.on('unblock_user', (data) => {
+        if (!data.blockerUid || !data.blockedUid) return;
+        if (inMemoryBlocks.has(data.blockerUid)) {
+            inMemoryBlocks.get(data.blockerUid).delete(data.blockedUid);
+        }
+        console.log(`[ZingTalk Block] ${data.blockerUid} unblocked ${data.blockedUid}`);
+    });
+
     socket.on('save_contact', async (data) => {
         try {
-            const userRef = db.collection('users').doc(data.myUid);
-            const targetRef = db.collection('users').where('uid', '==', data.targetUid);
-            const targetSnapshot = await targetRef.get();
+            let userRef = db.collection('users').doc(data.myUid);
+            let targetRef = db.collection('users').where('uid', '==', data.targetUid);
+            let targetSnapshot;
+            try {
+                targetSnapshot = await targetRef.get();
+            } catch (fsErr) {
+                console.warn('[ZingTalk] Database query failed in save_contact, falling back to memory store:', fsErr.message);
+                db = memoryDb;
+                userRef = db.collection('users').doc(data.myUid);
+                targetRef = db.collection('users').where('uid', '==', data.targetUid);
+                targetSnapshot = await targetRef.get();
+            }
 
             if (!targetSnapshot.empty) {
                 const newContact = { uid: data.targetUid, name: data.customName };
@@ -179,7 +229,15 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send_message', (data) => {
+        // WhatsApp Block Logic: If receiver has blocked sender, do NOT deliver
+        const receiverBlockedList = inMemoryBlocks.get(data.receiverUid);
+        if (receiverBlockedList && receiverBlockedList.has(data.senderUid)) {
+            // Emulate WhatsApp single checkmark (sent from phone, blocked by receiver)
+            socket.emit('message_status', { msgId: data.id, delivered: false });
+            return;
+        }
         io.to(data.receiverUid).emit('receive_message', data);
+        socket.emit('message_status', { msgId: data.id, delivered: true });
     });
 
     // Group Management (Zero disk/Firebase load)
@@ -227,6 +285,10 @@ io.on('connection', (socket) => {
         if (data.isGroup) {
             socket.to(data.targetId).emit('user_typing', data);
         } else {
+            const targetBlockedList = inMemoryBlocks.get(data.targetId);
+            if (targetBlockedList && targetBlockedList.has(data.senderUid)) {
+                return; // Suppress typing indicator if target blocked sender
+            }
             io.to(data.targetId).emit('user_typing', data);
         }
     });
@@ -255,6 +317,12 @@ io.on('connection', (socket) => {
     });
 
     socket.on('initiate_call', (data) => {
+        // WhatsApp Block Logic: If target has blocked caller, decline immediately without ringing
+        const targetBlockedList = inMemoryBlocks.get(data.targetUid);
+        if (targetBlockedList && targetBlockedList.has(data.callerUid)) {
+            socket.emit('call_response_received', { targetUid: data.targetUid, status: 'declined', reason: 'blocked' });
+            return;
+        }
         io.to(data.targetUid).emit('incoming_call', data);
     });
 

@@ -25,15 +25,16 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Dependencies
+      - name: Install Dependencies & Build Web Assets
         run: |
           npm install
           npm install --save @capacitor/core @capacitor/cli @capacitor/android
+          npm run build
 
       - name: Configure Capacitor & Add Android Platform
         run: |
           if [ ! -f "capacitor.config.json" ]; then
-            npx cap init ZingTalk com.zingtalk.com --web-dir .
+            npx cap init ZingTalk com.zingtalk.com --web-dir dist
           fi
           if [ ! -d "android" ]; then
             npx cap add android
