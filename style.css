@@ -791,6 +791,27 @@ body {
     height: 100vh;
     background: #0b141a;
     z-index: 999999;
+    overflow: hidden;
+}
+
+.call-top-admob {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 56px;
+    z-index: 1000005;
+    display: flex;
+    justify-content: center;
+}
+
+.call-stage-area {
+    position: absolute;
+    top: 56px;
+    left: 0;
+    width: 100%;
+    height: calc(100% - 56px);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -1175,17 +1196,6 @@ body {
     gap: 10px;
     z-index: 5;
     flex-shrink: 0;
-}
-
-/* Call Top Sticky AdMob Banner */
-.call-top-admob {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    z-index: 1000003;
-    display: flex;
-    justify-content: center;
 }
 
 /* Dashboard Segment Tabs (Direct vs Groups) */

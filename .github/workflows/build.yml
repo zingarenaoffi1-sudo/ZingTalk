@@ -14,13 +14,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21 (Required for Capacitor 7/8 & AGP 8+)
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
-      - name: Set up Node.js (Node 22 required by Capacitor CLI)
+      - name: Set up Node.js (Node 22)
         uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -40,6 +40,33 @@ jobs:
           fi
           npx cap sync android
 
+      - name: Inject Permissions in AndroidManifest.xml for Calls & Fire Tablets
+        run: |
+          python3 -c '
+          import os
+
+          manifest_path = "android/app/src/main/AndroidManifest.xml"
+          if os.path.exists(manifest_path):
+              with open(manifest_path, "r") as f:
+                  content = f.read()
+
+              permissions = [
+                  "<uses-permission android:name=\"android.permission.INTERNET\" />",
+                  "<uses-permission android:name=\"android.permission.RECORD_AUDIO\" />",
+                  "<uses-permission android:name=\"android.permission.CAMERA\" />",
+                  "<uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\" />",
+                  "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\" />"
+              ]
+
+              for perm in permissions:
+                  if perm not in content:
+                      content = content.replace("<manifest", "<manifest\n    " + perm, 1)
+
+              with open(manifest_path, "w") as f:
+                  f.write(content)
+              print("AndroidManifest.xml updated with audio/video/network permissions.")
+          '
+
       - name: Inject google-services.json & Release Keystore
         run: |
           mkdir -p android/app
@@ -56,6 +83,8 @@ jobs:
         working-directory: android/app
         run: |
           python3 -c '
+          import re
+
           with open("build.gradle", "r") as f:
               content = f.read()
 
@@ -73,7 +102,8 @@ jobs:
               content = content.replace("android {", "android {" + signing_block, 1)
 
           if "signingConfig signingConfigs.release" not in content:
-              content = content.replace("buildTypes {", "buildTypes {\n        release {\n            signingConfig signingConfigs.release\n            minifyEnabled false\n        }", 1)
+              # Safely inject signingConfig inside existing release block
+              content = re.sub(r"(buildTypes\s*\{\s*release\s*\{)", r"\1\n            signingConfig signingConfigs.release", content)
 
           with open("build.gradle", "w") as f:
               f.write(content)
