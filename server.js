@@ -78,7 +78,42 @@ function createMemoryDb() {
 const memoryDb = createMemoryDb();
 let db = memoryDb;
 
-if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+// Initialize Firebase Admin with Firestore
+const rawSdkConfig = process.env.Firebase_Admin_SDK || process.env.FIREBASE_ADMIN_SDK;
+
+if (rawSdkConfig) {
+    try {
+        let serviceAccount;
+        if (typeof rawSdkConfig === 'string') {
+            const trimmed = rawSdkConfig.trim();
+            if (trimmed.startsWith('{')) {
+                serviceAccount = JSON.parse(trimmed);
+            } else {
+                try {
+                    const decoded = Buffer.from(trimmed, 'base64').toString('utf-8');
+                    serviceAccount = JSON.parse(decoded);
+                } catch (_) {
+                    serviceAccount = JSON.parse(trimmed.replace(/\\n/g, '\n'));
+                }
+            }
+        } else {
+            serviceAccount = rawSdkConfig;
+        }
+
+        if (serviceAccount && serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
+
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        db = admin.firestore();
+        console.log('[ZingTalk] Initialized Firebase Admin Firestore successfully via Firebase_Admin_SDK! Project:', serviceAccount.project_id || 'detected');
+    } catch (err) {
+        console.error('[ZingTalk] Error parsing Firebase_Admin_SDK environment variable:', err.message);
+        db = memoryDb;
+    }
+} else if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
     try {
         const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
         const fbPrivateKey = rawPrivateKey.replace(/\\n/g, '\n');
@@ -123,37 +158,55 @@ const inMemoryBlocks = new Map();
 io.on('connection', (socket) => {
     socket.on('login_user', async (data) => {
         try {
+            if (!data) data = {};
             let uid;
             let usersRef = db.collection('users');
-            let snapshot;
+            let snapshot = { empty: true, docs: [] };
+            
             try {
-                snapshot = await usersRef.where('email', '==', data.email).get();
+                if (data.email) {
+                    snapshot = await usersRef.where('email', '==', data.email).get();
+                } else if (data.uid) {
+                    const docSnap = await usersRef.doc(String(data.uid)).get();
+                    if (docSnap.exists) {
+                        snapshot = { empty: false, docs: [{ data: () => docSnap.data() }] };
+                    }
+                }
             } catch (fsErr) {
                 console.warn('[ZingTalk] Database query failed, falling back to memory store:', fsErr.message);
                 db = memoryDb;
                 usersRef = db.collection('users');
-                snapshot = await usersRef.where('email', '==', data.email).get();
+                if (data.email) {
+                    snapshot = await usersRef.where('email', '==', data.email).get();
+                }
             }
 
             const existingDoc = !snapshot.empty ? snapshot.docs[0].data() : null;
             const existingUid = existingDoc ? String(existingDoc.uid || "") : "";
 
-            // Strict enforcement: UID MUST be exactly 10 digits
+            // Strict enforcement: UID MUST be exactly 10 digits and strictly unique across all users
             if (snapshot.empty || !existingUid || existingUid.length !== 10) {
                 let isUnique = false;
-                while (!isUnique) {
+                let attempts = 0;
+                while (!isUnique && attempts < 30) {
+                    attempts++;
                     uid = generate10DigitUid();
-                    const uidCheck = await usersRef.where('uid', '==', uid).get();
-                    if (uidCheck.empty) isUnique = true;
+                    // Double check doc existence AND where query to guarantee NO two users get same UID
+                    const docCheck = await usersRef.doc(uid).get();
+                    if (!docCheck.exists) {
+                        const uidCheck = await usersRef.where('uid', '==', uid).get();
+                        if (uidCheck.empty) isUnique = true;
+                    }
                 }
                 const newUser = {
                     ...(existingDoc || {}),
                     uid: uid,
-                    email: data.email,
+                    email: data.email || (existingDoc && existingDoc.email) || `guest_${uid}@zingtalk.local`,
                     name: data.name || (existingDoc && existingDoc.name) || "User",
                     contacts: (existingDoc && existingDoc.contacts) || []
                 };
-                await usersRef.doc(uid).set(newUser);
+                await usersRef.doc(uid).set(newUser, { merge: true });
+                console.log(`[ZingTalk] New 10-digit UID assigned: ${uid} for ${newUser.email}`);
             } else {
                 uid = existingUid;
             }

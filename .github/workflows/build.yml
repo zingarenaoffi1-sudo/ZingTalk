@@ -28,7 +28,7 @@ jobs:
       - name: Install Dependencies & Build Web Assets
         run: |
           npm install
-          npm install --save @capacitor/core @capacitor/cli @capacitor/android
+          npm install --save @capacitor/core @capacitor/cli @capacitor/android @capacitor-firebase/authentication
           npm run build
 
       - name: Configure Capacitor & Add Android Platform
@@ -40,6 +40,39 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
+
+      - name: Apply Google Services Gradle Plugin for Native Firebase
+        run: |
+          python3 -c '
+          import os, re
+
+          # 1. Project level build.gradle
+          root_gradle = "android/build.gradle"
+          if os.path.exists(root_gradle):
+              with open(root_gradle, "r", encoding="utf-8") as f:
+                  content = f.read()
+              if "com.google.gms:google-services" not in content:
+                  content = re.sub(
+                      r"(dependencies\s*\{)",
+                      r"\1\n        classpath \"com.google.gms:google-services:4.4.2\"",
+                      content,
+                      count=1
+                  )
+                  with open(root_gradle, "w", encoding="utf-8") as f:
+                      f.write(content)
+                  print("Added com.google.gms:google-services to android/build.gradle")
+
+          # 2. App level build.gradle
+          app_gradle = "android/app/build.gradle"
+          if os.path.exists(app_gradle):
+              with open(app_gradle, "r", encoding="utf-8") as f:
+                  content = f.read()
+              if "com.google.gms.google-services" not in content:
+                  content += "\napply plugin: '\''com.google.gms.google-services'\''\n"
+                  with open(app_gradle, "w", encoding="utf-8") as f:
+                      f.write(content)
+                  print("Applied com.google.gms.google-services to android/app/build.gradle")
+          '
 
       - name: Inject Permissions in AndroidManifest.xml for Calls & Fire Tablets
         run: |

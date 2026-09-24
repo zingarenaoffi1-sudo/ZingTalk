@@ -29,11 +29,6 @@ try {
     console.warn("Firebase client init note:", e);
 }
 
-// Socket.io connection to local server
-export const socket = (typeof io !== "undefined")
-    ? io({ transports: ["websocket", "polling"] })
-    : null;
-
 export function showToast(message) {
     const toast = document.getElementById("toast");
     if (!toast) return;
@@ -51,6 +46,65 @@ export let currentUser = null;
 export let my10DigitUid = null;
 export let my5DigitUid = null; // Alias for backward compatibility
 export let currentTargetUid = null;
+
+// Determine backend server URL (Render / Local / Web)
+export function getEffectiveServerUrl() {
+    const saved = localStorage.getItem("zingTalkServerUrl");
+    if (saved && saved.trim()) return saved.trim();
+
+    // Check if running in regular browser with a remote origin (e.g. AI Studio preview)
+    if (typeof window !== "undefined" && window.location && window.location.origin) {
+        const origin = window.location.origin;
+        if (!origin.includes("localhost") && !origin.includes("capacitor:") && !origin.startsWith("file:")) {
+            return origin;
+        }
+    }
+    // Default to user's live Render backend with Firebase Admin SDK!
+    return "https://zingtalk-4clj.onrender.com";
+}
+
+// Update all UID labels across the UI
+export function updateUidDisplays(uid) {
+    if (!uid) return;
+    my10DigitUid = String(uid);
+    my5DigitUid = String(uid);
+    const label = document.getElementById("my-uid-label");
+    if (label) label.innerText = "UID: " + my10DigitUid;
+    const modalUid = document.getElementById("modal-uid");
+    if (modalUid) modalUid.innerText = my10DigitUid;
+}
+
+// Compute deterministic 10-digit UID (guarantees instant UID on Android even before server connects)
+export function computeDeterministic10DigitUid(idStr) {
+    if (!idStr) return "1000000001";
+    let hash = 5381;
+    for (let i = 0; i < idStr.length; i++) {
+        hash = ((hash << 5) + hash) + idStr.charCodeAt(i);
+        hash |= 0;
+    }
+    const num = (Math.abs(hash) % 9000000000) + 1000000000;
+    return num.toString();
+}
+
+export function updateServerStatusUI(status) {
+    const dot = document.getElementById("server-status-dot");
+    const btn = document.getElementById("server-status-btn");
+    if (!dot) return;
+    const url = getEffectiveServerUrl();
+    if (status === "connected") {
+        dot.style.background = "#10b981";
+        if (btn) btn.title = "Connected to Server (" + (url || "Local") + ")";
+    } else if (status === "connecting") {
+        dot.style.background = "#f59e0b";
+        if (btn) btn.title = "Connecting to Server...";
+    } else {
+        dot.style.background = "#ef4444";
+        if (btn) btn.title = "Server Disconnected. Tap to set Render URL.";
+    }
+}
+
+// Socket.io connection state
+export let socket = null;
 export let isGroupMode = false;
 export let currentGroup = null;
 let chatHistory = JSON.parse(localStorage.getItem("zingTalkHistory")) || {};
@@ -95,20 +149,29 @@ if (savedGuest) {
     } catch (_) {}
 }
 
-if (socket) {
-    socket.on("connect", () => {
-        if (currentUser) {
-            socket.emit("login_user", { email: currentUser.email, name: currentUser.displayName });
-        }
-    });
-}
-
 function loginUserSession(user) {
     currentUser = user;
     document.getElementById("login-screen")?.classList.add("hidden");
     document.getElementById("main-screen")?.classList.remove("hidden");
+
+    const displayName = user.displayName || (user.email ? user.email.split("@")[0] : "User");
+    if (document.getElementById("my-name")) document.getElementById("my-name").innerText = displayName;
+    if (document.getElementById("my-avatar")) document.getElementById("my-avatar").innerText = displayName.charAt(0).toUpperCase();
+
+    // 1. INSTANT 10-DIGIT UID FALLBACK (GUARANTEES UID IS NEVER EMPTY ON ANDROID APK!)
+    const cacheKey = "zingTalkUid_" + (user.email || user.uid);
+    const cachedUid = localStorage.getItem(cacheKey);
+    if (cachedUid) {
+        updateUidDisplays(cachedUid);
+    } else if (!my10DigitUid) {
+        const instantUid = computeDeterministic10DigitUid(user.uid || user.email);
+        updateUidDisplays(instantUid);
+        localStorage.setItem(cacheKey, instantUid);
+    }
+
+    // 2. Sync with Render Server
     if (socket && socket.connected) {
-        socket.emit("login_user", { email: user.email, name: user.displayName || "User" });
+        socket.emit("login_user", { email: user.email, name: displayName, uid: my10DigitUid });
     }
 }
 
@@ -120,6 +183,10 @@ function logoutUserSession() {
     localStorage.removeItem("zingTalkGuestUser");
     if (auth) {
         signOut(auth).catch(() => {});
+    }
+    const isCapacitor = (typeof window !== "undefined" && window.Capacitor);
+    if (isCapacitor && window.Capacitor.Plugins?.FirebaseAuthentication) {
+        window.Capacitor.Plugins.FirebaseAuthentication.signOut().catch(() => {});
     }
     document.getElementById("profile-modal")?.classList.add("hidden");
     document.getElementById("main-screen")?.classList.add("hidden");
@@ -166,27 +233,48 @@ function triggerAdMobInterstitial() {
     }, 1000);
 }
 
-// ----------------- Socket Events -----------------
-if (socket) {
-    socket.on("user_data", (data) => {
-        my10DigitUid = String(data.uid);
-        my5DigitUid = String(data.uid);
+// ----------------- Socket Events & Management -----------------
+export function registerSocketListeners(s) {
+    if (!s) return;
+
+    s.on("connect", () => {
+        updateServerStatusUI("connected");
+        if (currentUser) {
+            s.emit("login_user", { email: currentUser.email, name: currentUser.displayName || "User", uid: my10DigitUid });
+        }
+    });
+
+    s.on("disconnect", () => {
+        updateServerStatusUI("disconnected");
+    });
+
+    s.on("connect_error", (err) => {
+        console.warn("Socket connect note:", err ? err.message : "connection error");
+        updateServerStatusUI("disconnected");
+    });
+
+    s.on("user_data", (data) => {
+        if (data && data.uid) {
+            updateUidDisplays(data.uid);
+            if (currentUser) {
+                localStorage.setItem("zingTalkUid_" + (currentUser.email || currentUser.uid), my10DigitUid);
+            }
+        }
         const displayName = (currentUser && currentUser.displayName) ? currentUser.displayName : "User";
         
         if (document.getElementById("my-name")) document.getElementById("my-name").innerText = displayName;
-        if (document.getElementById("my-uid-label")) document.getElementById("my-uid-label").innerText = "UID: " + my10DigitUid;
         if (document.getElementById("my-avatar")) document.getElementById("my-avatar").innerText = displayName.charAt(0).toUpperCase();
         
         // Sync active blocks with server
         blockedUids.forEach(bUid => {
-            socket.emit("block_user", { blockerUid: my10DigitUid, blockedUid: bUid });
+            s.emit("block_user", { blockerUid: my10DigitUid, blockedUid: bUid });
         });
         updateBlockedCountBadge();
 
         renderContacts(data.contacts);
     });
 
-    socket.on("message_status", (status) => {
+    s.on("message_status", (status) => {
         const msgEl = document.querySelector(`.msg-bubble[data-msg-id="${status.msgId}"]`);
         if (msgEl) {
             const checkEl = msgEl.querySelector(".msg-meta span");
@@ -202,18 +290,18 @@ if (socket) {
         }
     });
 
-    socket.on("contact_saved", (contacts) => {
+    s.on("contact_saved", (contacts) => {
         if (document.getElementById("search-uid-input")) document.getElementById("search-uid-input").value = "";
         if (document.getElementById("save-name-input")) document.getElementById("save-name-input").value = "";
         showToast("Contact saved successfully!");
         renderContacts(contacts);
     });
 
-    socket.on("contact_error", (msg) => {
+    s.on("contact_error", (msg) => {
         showToast(msg);
     });
 
-    socket.on("receive_message", (data) => {
+    s.on("receive_message", (data) => {
         const sender = data.senderUid;
         if (blockedUids.includes(sender)) return; // Blocked user filter
         if (!chatHistory[sender]) chatHistory[sender] = [];
@@ -228,7 +316,7 @@ if (socket) {
         }
     });
 
-    socket.on("receive_group_message", (data) => {
+    s.on("receive_group_message", (data) => {
         if (data.senderUid === my10DigitUid) return;
         const gid = data.groupId;
         saveGroupMessage(gid, { ...data, type: "msg-received" });
@@ -241,7 +329,7 @@ if (socket) {
         }
     });
 
-    socket.on("group_created", (group) => {
+    s.on("group_created", (group) => {
         if (!myGroups.some(g => g.groupId === group.groupId)) {
             myGroups.push(group);
             localStorage.setItem("zingTalkGroups", JSON.stringify(myGroups));
@@ -251,7 +339,7 @@ if (socket) {
         showToast(`Group "${group.name}" created! (10-digit ID: ${group.groupId})`);
     });
 
-    socket.on("group_added", (group) => {
+    s.on("group_added", (group) => {
         if (!myGroups.some(g => g.groupId === group.groupId)) {
             myGroups.push(group);
             localStorage.setItem("zingTalkGroups", JSON.stringify(myGroups));
@@ -260,7 +348,7 @@ if (socket) {
         showToast(`You were added to group "${group.name}"!`);
     });
 
-    socket.on("user_typing", (data) => {
+    s.on("user_typing", (data) => {
         const statusEl = document.getElementById("chat-contact-uid");
         if (!statusEl) return;
         if (isGroupMode && currentGroup && currentGroup.groupId === data.targetId) {
@@ -272,7 +360,7 @@ if (socket) {
         }
     });
 
-    socket.on("user_stop_typing", () => {
+    s.on("user_stop_typing", () => {
         const statusEl = document.getElementById("chat-contact-uid");
         if (!statusEl) return;
         statusEl.style.color = "";
@@ -283,17 +371,17 @@ if (socket) {
         }
     });
 
-    socket.on("receive_reaction", (data) => {
+    s.on("receive_reaction", (data) => {
         applyReactionToMessage(data.msgId, data.emoji, data.userUid);
     });
 
-    socket.on("report_ack", (data) => {
+    s.on("report_ack", (data) => {
         showToast(data.message || "Report filed with compliance team.");
     });
 
-    socket.on("incoming_call", (data) => {
+    s.on("incoming_call", (data) => {
         if (blockedUids.includes(data.callerUid)) {
-            socket.emit("call_response", { targetUid: data.callerUid, status: "rejected" });
+            s.emit("call_response", { targetUid: data.callerUid, status: "rejected" });
             return;
         }
         activeCallTarget = data.callerUid;
@@ -316,13 +404,13 @@ if (socket) {
         document.getElementById("incoming-call-overlay")?.classList.remove("hidden");
     });
 
-    socket.on("call_cancelled", () => {
+    s.on("call_cancelled", () => {
         document.getElementById("incoming-call-overlay")?.classList.add("hidden");
         activeCallTarget = null;
         showToast("Call cancelled by caller");
     });
 
-    socket.on("call_response_received", async (data) => {
+    s.on("call_response_received", async (data) => {
         document.getElementById("outgoing-call-overlay")?.classList.add("hidden");
         if (data.status === "accepted") {
             await startWebRTC(true);
@@ -332,13 +420,13 @@ if (socket) {
         }
     });
 
-    socket.on("webrtc_offer_received", async (data) => {
+    s.on("webrtc_offer_received", async (data) => {
         if (!peerConnection) return;
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
-            socket.emit("webrtc_answer", { targetUid: activeCallTarget, answer });
+            s.emit("webrtc_answer", { targetUid: activeCallTarget, answer });
 
             while (iceCandidatesQueue.length > 0) {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(iceCandidatesQueue.shift()));
@@ -348,7 +436,7 @@ if (socket) {
         }
     });
 
-    socket.on("webrtc_answer_received", async (data) => {
+    s.on("webrtc_answer_received", async (data) => {
         if (!peerConnection) return;
         try {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
@@ -361,7 +449,7 @@ if (socket) {
         }
     });
 
-    socket.on("webrtc_ice_candidate_received", async (data) => {
+    s.on("webrtc_ice_candidate_received", async (data) => {
         if (peerConnection && peerConnection.remoteDescription) {
             try {
                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -373,12 +461,37 @@ if (socket) {
         }
     });
 
-    socket.on("webrtc_call_ended", () => {
+    s.on("webrtc_call_ended", () => {
         endCallCleanup();
         showToast("Call ended");
         triggerAdMobInterstitial();
     });
 }
+
+export function connectSocket(customUrl) {
+    if (typeof io === "undefined") return null;
+    const targetUrl = (customUrl !== undefined ? customUrl : getEffectiveServerUrl()) || "";
+    
+    if (socket) {
+        try { socket.disconnect(); } catch (_) {}
+    }
+
+    updateServerStatusUI("connecting");
+    const socketOpts = {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        timeout: 10000
+    };
+
+    socket = targetUrl ? io(targetUrl, socketOpts) : io(socketOpts);
+    registerSocketListeners(socket);
+    return socket;
+}
+
+// Connect socket on startup
+connectSocket();
 
 // ----------------- UI Rendering -----------------
 function renderContacts(contacts) {
@@ -1143,9 +1256,50 @@ document.addEventListener("click", async (e) => {
         }
     }
 
-    // Google Login button
+    // Google Login button (Native In-App for Android APK + Web Popup for Preview)
     if (e.target.id === "google-login-btn" || e.target.closest("#google-login-btn")) {
         clearLoginError();
+
+        // 1. Check if running inside Capacitor Android native app
+        const isCapacitor = (typeof window !== "undefined" && window.Capacitor);
+        const isNative = isCapacitor && (
+            (typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform()) ||
+            window.Capacitor.getPlatform?.() === "android" ||
+            window.location.protocol === "capacitor:" ||
+            window.location.hostname === "localhost"
+        );
+
+        if (isNative) {
+            // NATIVE IN-APP GOOGLE SIGN-IN VIA @capacitor-firebase/authentication
+            // Uses Android native Google Play Services bottom sheet - ZERO CHROME / BROWSER REDIRECT!
+            const nativePlugin = window.Capacitor.Plugins?.FirebaseAuthentication ||
+                (typeof window.Capacitor.registerPlugin === "function" ? window.Capacitor.registerPlugin("FirebaseAuthentication") : null);
+
+            if (nativePlugin && typeof nativePlugin.signInWithGoogle === "function") {
+                showToast("Opening Google Sign-In...");
+                nativePlugin.signInWithGoogle()
+                    .then(res => {
+                        if (res && res.user) {
+                            const u = res.user;
+                            const displayName = u.displayName || (u.email ? u.email.split("@")[0] : "User");
+                            loginUserSession({
+                                uid: u.uid,
+                                email: u.email,
+                                displayName: displayName,
+                                photoURL: u.photoUrl || ""
+                            });
+                            showToast("Welcome, " + displayName + "!");
+                        }
+                    })
+                    .catch(nativeErr => {
+                        console.error("Native Google Auth error:", nativeErr);
+                        showLoginError("Google Sign-In note: " + (nativeErr.message || nativeErr));
+                    });
+                return;
+            }
+        }
+
+        // 2. Web browser fallback (AI Studio preview environment)
         if (auth && provider) {
             signInWithPopup(auth, provider).catch(err => {
                 showLoginError("Google Sign-in: " + err.message);
@@ -1316,6 +1470,45 @@ document.addEventListener("click", async (e) => {
     // Close Blocked Contacts List Modal
     if (e.target.id === "close-blocked-modal-btn") {
         document.getElementById("blocked-list-modal")?.classList.add("hidden");
+    }
+
+    // Open Backend Server Configuration Modal (Render)
+    if (e.target.id === "server-status-btn" || e.target.closest("#server-status-btn") || e.target.id === "login-server-config-btn") {
+        const inp = document.getElementById("server-url-input");
+        if (inp) {
+            inp.value = localStorage.getItem("zingTalkServerUrl") || "";
+        }
+        const statusEl = document.getElementById("server-test-status");
+        if (statusEl) {
+            const current = getEffectiveServerUrl();
+            statusEl.innerHTML = current ? `<span style="color:#10b981; font-weight:600;">Active: ${current}</span>` : `<span style="color:#667781;">Active: Auto / Localhost</span>`;
+        }
+        document.getElementById("server-config-modal")?.classList.remove("hidden");
+    }
+
+    // Close Backend Server Modal
+    if (e.target.id === "close-server-modal-btn") {
+        document.getElementById("server-config-modal")?.classList.add("hidden");
+    }
+
+    // Save & Connect Server URL
+    if (e.target.id === "save-server-url-btn") {
+        const inp = document.getElementById("server-url-input");
+        let val = inp ? inp.value.trim() : "";
+        if (val) {
+            if (!val.startsWith("http://") && !val.startsWith("https://")) {
+                val = "https://" + val;
+            }
+            // Strip trailing slash
+            val = val.replace(/\/+$/, "");
+            localStorage.setItem("zingTalkServerUrl", val);
+            showToast("Connecting to " + val);
+        } else {
+            localStorage.removeItem("zingTalkServerUrl");
+            showToast("Reset to auto server URL");
+        }
+        connectSocket(val);
+        document.getElementById("server-config-modal")?.classList.add("hidden");
     }
 
     // Typing Indicator listener on chat input
