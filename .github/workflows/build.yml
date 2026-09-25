@@ -72,6 +72,22 @@ jobs:
                   with open(app_gradle, "w", encoding="utf-8") as f:
                       f.write(content)
                   print("Applied com.google.gms.google-services to android/app/build.gradle")
+
+          # 3. variables.gradle for @capacitor-firebase/authentication Google Sign-In
+          var_gradle = "android/variables.gradle"
+          if os.path.exists(var_gradle):
+              with open(var_gradle, "r", encoding="utf-8") as f:
+                  vcontent = f.read()
+              if "rgcfaIncludeGoogle" not in vcontent:
+                  vcontent = re.sub(
+                      r"(ext\s*\{)",
+                      r"\1\n    rgcfaIncludeGoogle = true",
+                      vcontent,
+                      count=1
+                  )
+                  with open(var_gradle, "w", encoding="utf-8") as f:
+                      f.write(vcontent)
+                  print("Added rgcfaIncludeGoogle = true to android/variables.gradle")
           '
 
       - name: Inject Permissions in AndroidManifest.xml for Calls & Fire Tablets
