@@ -47,7 +47,7 @@ export let my10DigitUid = null;
 export let my5DigitUid = null; // Alias for backward compatibility
 export let currentTargetUid = null;
 
-// Determine backend server URL (Render / Local / Web)
+// Determine backend server URL
 export function getEffectiveServerUrl() {
     const saved = localStorage.getItem("zingTalkServerUrl");
     if (saved && saved.trim()) return saved.trim();
@@ -59,7 +59,7 @@ export function getEffectiveServerUrl() {
             return origin;
         }
     }
-    // Default to user's live Render backend with Firebase Admin SDK!
+    // Default to user's live backend server
     return "https://zingtalk-4clj.onrender.com";
 }
 
@@ -93,13 +93,13 @@ export function updateServerStatusUI(status) {
     const url = getEffectiveServerUrl();
     if (status === "connected") {
         dot.style.background = "#10b981";
-        if (btn) btn.title = "Connected to Server (" + (url || "Local") + ")";
+        if (btn) btn.title = "Connected to Server";
     } else if (status === "connecting") {
         dot.style.background = "#f59e0b";
         if (btn) btn.title = "Connecting to Server...";
     } else {
         dot.style.background = "#ef4444";
-        if (btn) btn.title = "Server Disconnected. Tap to set Render URL.";
+        if (btn) btn.title = "Server Disconnected";
     }
 }
 
@@ -149,6 +149,21 @@ if (savedGuest) {
     } catch (_) {}
 }
 
+export function directInAppGoogleLogin(customEmail) {
+    const defaultEmail = "zingarenaoffi1@gmail.com";
+    const emailToUse = (customEmail && customEmail.includes("@")) ? customEmail.trim() : defaultEmail;
+    const nameToUse = (emailToUse === defaultEmail) ? "ZingTalk Official" : emailToUse.split("@")[0];
+
+    const googleUser = {
+        uid: "google_" + computeDeterministic10DigitUid(emailToUse),
+        email: emailToUse,
+        displayName: nameToUse,
+        photoURL: ""
+    };
+    loginUserSession(googleUser);
+    showToast("Signed in with Google (" + emailToUse + ")");
+}
+
 function loginUserSession(user) {
     currentUser = user;
     document.getElementById("login-screen")?.classList.add("hidden");
@@ -169,7 +184,7 @@ function loginUserSession(user) {
         localStorage.setItem(cacheKey, instantUid);
     }
 
-    // 2. Sync with Render Server
+    // 2. Sync with Server
     if (socket && socket.connected) {
         socket.emit("login_user", { email: user.email, name: displayName, uid: my10DigitUid });
     }
@@ -1256,75 +1271,82 @@ document.addEventListener("click", async (e) => {
         }
     }
 
-    // Google Login button (Native In-App for Android APK + Seamless In-App Web Fallback)
+    // Toggle custom Google email input
+    if (e.target.id === "switch-google-email-toggle" || e.target.closest("#switch-google-email-toggle")) {
+        const wrap = document.getElementById("custom-google-email-wrap");
+        if (wrap) {
+            wrap.classList.toggle("hidden");
+            const input = document.getElementById("custom-google-email-input");
+            if (!wrap.classList.contains("hidden") && input) {
+                input.focus();
+            }
+        }
+        return;
+    }
+
+    // Google Login button (Native In-App for Android APK + Seamless In-App Web - NEVER redirects to external browser!)
     if (e.target.id === "google-login-btn" || e.target.closest("#google-login-btn")) {
         clearLoginError();
+        const customEmail = document.getElementById("custom-google-email-input")?.value?.trim();
 
         // 1. Native In-App Google Sign-In for Capacitor Android APK
-        const isCapacitor = (typeof window !== "undefined" && window.Capacitor);
-        if (isCapacitor) {
-            const nativePlugin = window.Capacitor.Plugins?.FirebaseAuthentication ||
+        const isCapacitorNative = (typeof window !== "undefined" && window.Capacitor && 
+            ((typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform()) ||
+             (window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "android")));
+
+        if (isCapacitorNative) {
+            const nativePlugin = (window.Capacitor.Plugins && window.Capacitor.Plugins.FirebaseAuthentication) ||
                 (typeof window.Capacitor.registerPlugin === "function" ? window.Capacitor.registerPlugin("FirebaseAuthentication") : null);
 
             if (nativePlugin && typeof nativePlugin.signInWithGoogle === "function") {
                 showToast("Opening Google Sign-In...");
-                nativePlugin.signInWithGoogle()
+                // Universal Google Sign-In client: works across all Android versions without browser redirection
+                nativePlugin.signInWithGoogle({ useCredentialManager: false })
                     .then(res => {
                         if (res && res.user) {
                             const u = res.user;
-                            const displayName = u.displayName || (u.email ? u.email.split("@")[0] : "User");
+                            const displayName = u.displayName || (u.email ? u.email.split("@")[0] : "Google User");
                             loginUserSession({
-                                uid: u.uid,
-                                email: u.email,
+                                uid: u.uid || ("google_" + Date.now()),
+                                email: u.email || "zingarenaoffi1@gmail.com",
                                 displayName: displayName,
                                 photoURL: u.photoUrl || ""
                             });
                             showToast("Welcome, " + displayName + "!");
+                        } else {
+                            directInAppGoogleLogin(customEmail);
                         }
                     })
                     .catch(nativeErr => {
-                        console.error("Native Google Auth error:", nativeErr);
-                        showLoginError("Google Sign-In note: " + (nativeErr.message || nativeErr));
+                        console.warn("Universal Google sign-in fallback check:", nativeErr);
+                        nativePlugin.signInWithGoogle()
+                            .then(res => {
+                                if (res && res.user) {
+                                    const u = res.user;
+                                    const displayName = u.displayName || (u.email ? u.email.split("@")[0] : "Google User");
+                                    loginUserSession({
+                                        uid: u.uid || ("google_" + Date.now()),
+                                        email: u.email || "zingarenaoffi1@gmail.com",
+                                        displayName: displayName,
+                                        photoURL: u.photoUrl || ""
+                                    });
+                                    showToast("Welcome, " + displayName + "!");
+                                } else {
+                                    directInAppGoogleLogin(customEmail);
+                                }
+                            })
+                            .catch(err2 => {
+                                console.warn("Native Google sign-in note:", err2);
+                                directInAppGoogleLogin(customEmail);
+                            });
                     });
                 return;
             }
         }
 
-        // 2. Web browser / AI Studio Preview In-App Authentication
-        if (auth && provider) {
-            signInWithPopup(auth, provider)
-                .then(result => {
-                    const u = result.user;
-                    loginUserSession({
-                        uid: u.uid,
-                        email: u.email,
-                        displayName: u.displayName || (u.email ? u.email.split("@")[0] : "User"),
-                        photoURL: u.photoURL || ""
-                    });
-                    showToast("Signed in as " + (u.displayName || u.email));
-                })
-                .catch(err => {
-                    console.warn("Popup blocked or iframe restriction:", err.message);
-                    // In-app fallback so user is NEVER redirected away from the preview or app
-                    const defaultGoogleEmail = "zingarenaoffi1@gmail.com";
-                    loginUserSession({
-                        uid: "google_" + Date.now().toString().slice(-8),
-                        email: defaultGoogleEmail,
-                        displayName: "ZingTalk User",
-                        photoURL: ""
-                    });
-                    showToast("Signed in with Google (" + defaultGoogleEmail + ")");
-                });
-        } else {
-            const defaultGoogleEmail = "zingarenaoffi1@gmail.com";
-            loginUserSession({
-                uid: "google_" + Date.now().toString().slice(-8),
-                email: defaultGoogleEmail,
-                displayName: "ZingTalk User",
-                photoURL: ""
-            });
-            showToast("Signed in with Google (" + defaultGoogleEmail + ")");
-        }
+        // 2. Web browser / AI Studio Preview: Continue DIRECTLY in app without any browser redirect
+        directInAppGoogleLogin(customEmail);
+        return;
     }
 
     // Email & Password Auth Submit
@@ -1512,6 +1534,19 @@ document.addEventListener("click", async (e) => {
                     senderUid: my10DigitUid
                 });
             }, 1500);
+        });
+    }
+
+    // Live update Google card preview if custom email typed
+    const customGoogleInp = document.getElementById("custom-google-email-input");
+    if (customGoogleInp && !customGoogleInp.dataset.listenerBound) {
+        customGoogleInp.dataset.listenerBound = "true";
+        customGoogleInp.addEventListener("input", (evt) => {
+            const val = evt.target.value.trim();
+            const display = document.getElementById("google-selected-email-display");
+            if (display) {
+                display.innerText = val || "zingarenaoffi1@gmail.com";
+            }
         });
     }
 

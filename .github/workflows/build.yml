@@ -39,6 +39,11 @@ jobs:
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+          mkdir -p android/app
+          if [ -f "google-services.json" ]; then
+            cp google-services.json android/app/google-services.json
+            echo "google-services.json copied to android/app/ before sync"
+          fi
           npx cap sync android
 
       - name: Apply Google Services Gradle Plugin for Native Firebase
@@ -81,13 +86,24 @@ jobs:
               if "rgcfaIncludeGoogle" not in vcontent:
                   vcontent = re.sub(
                       r"(ext\s*\{)",
-                      r"\1\n    rgcfaIncludeGoogle = true",
+                      r"\1\n    rgcfaIncludeGoogle = true\n    playServicesAuthVersion = '\''20.7.0'\''",
                       vcontent,
                       count=1
                   )
                   with open(var_gradle, "w", encoding="utf-8") as f:
                       f.write(vcontent)
-                  print("Added rgcfaIncludeGoogle = true to android/variables.gradle")
+                  print("Added rgcfaIncludeGoogle and playServicesAuthVersion to android/variables.gradle")
+
+          # 4. Inject default_web_client_id into strings.xml
+          strings_path = "android/app/src/main/res/values/strings.xml"
+          if os.path.exists(strings_path):
+              with open(strings_path, "r", encoding="utf-8") as f:
+                  scontent = f.read()
+              if "default_web_client_id" not in scontent:
+                  scontent = scontent.replace("</resources>", "    <string name=\"default_web_client_id\">214252384173-5222k1sa5mvl002c7kd7g90c2g70h69c.apps.googleusercontent.com</string>\n</resources>")
+                  with open(strings_path, "w", encoding="utf-8") as f:
+                      f.write(scontent)
+                  print("Injected default_web_client_id into android/app/src/main/res/values/strings.xml")
           '
 
       - name: Inject Permissions in AndroidManifest.xml for Calls & Fire Tablets
