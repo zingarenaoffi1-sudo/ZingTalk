@@ -122,7 +122,6 @@ let callDurationTimer = null;
 let callSecondsElapsed = 0;
 let iceCandidatesQueue = [];
 let isRegisterMode = false;
-let adTimerInterval = null;
 let typingTimeout = null;
 let selectedGroupEmoji = "👥";
 let activeReactionTargetMsgId = null;
@@ -220,32 +219,6 @@ if (auth) {
             document.getElementById("chat-screen")?.classList.add("hidden");
         }
     });
-}
-
-// ----------------- AdMob Interstitial Simulation -----------------
-function triggerAdMobInterstitial() {
-    const modal = document.getElementById("admob-interstitial-modal");
-    const timerText = document.getElementById("admob-timer-text");
-    const closeBtn = document.getElementById("admob-close-btn");
-    if (!modal || !timerText || !closeBtn) return;
-
-    modal.classList.remove("hidden");
-    let countdown = 5;
-    timerText.style.display = "inline";
-    timerText.textContent = `Skip in ${countdown}s`;
-    closeBtn.style.display = "none";
-
-    clearInterval(adTimerInterval);
-    adTimerInterval = setInterval(() => {
-        countdown--;
-        if (countdown > 0) {
-            timerText.textContent = `Skip in ${countdown}s`;
-        } else {
-            clearInterval(adTimerInterval);
-            timerText.style.display = "none";
-            closeBtn.style.display = "inline-block";
-        }
-    }, 1000);
 }
 
 // ----------------- Socket Events & Management -----------------
@@ -479,7 +452,6 @@ export function registerSocketListeners(s) {
     s.on("webrtc_call_ended", () => {
         endCallCleanup();
         showToast("Call ended");
-        triggerAdMobInterstitial();
     });
 }
 
@@ -1200,7 +1172,6 @@ function endCall() {
         socket.emit("webrtc_end_call", { targetUid: activeCallTarget });
     }
     endCallCleanup();
-    triggerAdMobInterstitial();
 }
 
 function showLoginError(msg) {
@@ -1911,12 +1882,6 @@ document.addEventListener("click", async (e) => {
     // End Active Call button
     if (e.target.id === "end-call-btn" || e.target.closest("#end-call-btn")) {
         endCall();
-    }
-
-    // Close AdMob Interstitial Modal
-    if (e.target.id === "admob-close-btn") {
-        clearInterval(adTimerInterval);
-        document.getElementById("admob-interstitial-modal")?.classList.add("hidden");
     }
 });
 

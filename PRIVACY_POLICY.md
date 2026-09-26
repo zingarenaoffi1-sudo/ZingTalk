@@ -37,11 +37,10 @@ Welcome to **ZingTalk**. Your privacy and data confidentiality are our core valu
 
 ---
 
-## 4. Advertising & Third-Party Services
+## 4. Third-Party Services & Authentication
 
-ZingTalk integrates Google Mobile Ads (AdMob) to support development and service maintenance:
-- **Google AdMob**: AdMob may use device identifiers and non-personalized advertising data in accordance with Google's Advertising Privacy Policies. You may opt out of personalized ads via your device's Google/Android Settings.
-- **Firebase Authentication**: Used securely to authenticate user credentials.
+ZingTalk integrates trusted security services:
+- **Firebase Authentication**: Used securely to authenticate user credentials with zero persistent cloud chat logs.
 
 ---
 
